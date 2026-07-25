@@ -1,0 +1,620 @@
+{
+  "settings": {
+    "restaurantName": "MAHANKAL FOOD PARK",
+    "tagline": "Family Restaurant & Party Venue",
+    "address": "Mahankal Road,Jawad",
+    "phone": "+91 8770522218",
+    "gstNumber": "",
+    "currency": "Rs.",
+    "taxRate": "0",
+    "serviceChargeRate": "0.00",
+    "aboutUs": "Hall Available for All Parties",
+    "footerText": "Thank you for visiting! ",
+    "wifiSSID": "",
+    "wifiPassword": "",
+    "defaultPaperSize": "80mm",
+    "upiId": "8770522218@upi",
+    "receiptHeaderNote": "TAX INVOICE / BILL",
+    "autoPrintOnCheckout": true,
+    "escPosCut": true,
+    "escPosDrawer": false,
+    "item1Name": "Dal",
+    "item1Price": "100.00",
+    "item2Name": "Roti",
+    "item2Price": "150.00",
+    "item3Name": "Sabzi",
+    "item3Price": "200.00",
+    "item4Name": "Salad",
+    "item4Price": "250.00"
+  },
+  "tables": [
+    {
+      "id": "1785014472733",
+      "name": "table 1"
+    },
+    {
+      "id": "1785014474617",
+      "name": "table 2"
+    }
+  ],
+  "categories": [
+    {
+      "id": "1785014500146",
+      "name": "Roti"
+    },
+    {
+      "id": "1785014535393",
+      "name": "Dal"
+    }
+  ],
+  "menuItems": [
+    {
+      "id": "1785014510029",
+      "categoryId": "1785014500146",
+      "name": "Plain Roti",
+      "price": 10,
+      "isFavorite": false
+    },
+    {
+      "id": "1785014521910",
+      "categoryId": "1785014500146",
+      "name": "Butter Roti",
+      "price": 15,
+      "isFavorite": false
+    },
+    {
+      "id": "1785014539542",
+      "categoryId": "1785014535393",
+      "name": "Dal Tadka",
+      "price": 149,
+      "isFavorite": false
+    }
+  ],
+  "users": [
+    {
+      "id": "1",
+      "username": "admin",
+      "password": "123",
+      "role": "admin"
+    },
+    {
+      "id": "1785014565339",
+      "username": "Suresh",
+      "password": "",
+      "role": "waiter"
+    },
+    {
+      "id": "1785014636774",
+      "username": "Mukesh",
+      "password": "",
+      "role": "waiter"
+    }
+  ],
+  "bills": [
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-704858",
+      "tableNumber": "Parcel: Mukesh",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 2:55:04 am",
+      "items": [
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 2
+        },
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 35,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 35,
+      "paymentMethod": "Cash",
+      "customerName": "Mukesh",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785014704881",
+      "timestamp": "2026-07-25T21:25:04.881Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-882998",
+      "tableNumber": "Parcel: sdfghj",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 2:58:02 am",
+      "items": [
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 15,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 15,
+      "paymentMethod": "Cash",
+      "customerName": "sdfghj",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785014883022",
+      "timestamp": "2026-07-25T21:28:03.022Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-083870",
+      "tableNumber": "Parcel: roan",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:01:23 am",
+      "items": [
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 4
+        },
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 1
+        },
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 2
+        }
+      ],
+      "subtotal": 368,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 368,
+      "paymentMethod": "UPI",
+      "customerName": "roan",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785015083906",
+      "timestamp": "2026-07-25T21:31:23.906Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-208770",
+      "tableNumber": "Parcel (Takeaway)",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:03:28 am",
+      "items": [
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 4
+        }
+      ],
+      "subtotal": 596,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 596,
+      "paymentMethod": "UPI",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785015208785",
+      "timestamp": "2026-07-25T21:33:28.785Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-425808",
+      "tableNumber": "Parcel: fgdfgdf",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:07:05 am",
+      "items": [
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 4
+        },
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 3
+        },
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 2
+        }
+      ],
+      "subtotal": 656,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 656,
+      "paymentMethod": "UPI",
+      "customerName": "fgdfgdf",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785015425851",
+      "timestamp": "2026-07-25T21:37:05.851Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-995262",
+      "tableNumber": "Parcel: hkhkhhjhj",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:16:35 am",
+      "items": [
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 5
+        },
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 1
+        },
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 234,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 234,
+      "paymentMethod": "UPI",
+      "customerName": "hkhkhhjhj",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785015995314",
+      "timestamp": "2026-07-25T21:46:35.314Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-052022",
+      "tableNumber": "Parcel: ijknnn",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:17:32 am",
+      "items": [
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 1
+        },
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 1
+        },
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 174,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 174,
+      "paymentMethod": "UPI",
+      "customerName": "ijknnn",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016052038",
+      "timestamp": "2026-07-25T21:47:32.038Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-085681",
+      "tableNumber": "table 1",
+      "orderType": "Dine-In",
+      "date": "26/7/2026, 3:18:05 am",
+      "items": [
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 10,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 10,
+      "paymentMethod": "UPI",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016085698",
+      "timestamp": "2026-07-25T21:48:05.698Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-225813",
+      "tableNumber": "table 1",
+      "orderType": "Dine-In",
+      "date": "26/7/2026, 3:20:25 am",
+      "items": [
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 2
+        },
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 1
+        },
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 1
+        }
+      ],
+      "subtotal": 184,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 184,
+      "paymentMethod": "UPI",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016225826",
+      "timestamp": "2026-07-25T21:50:25.826Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-249694",
+      "tableNumber": "table 1",
+      "orderType": "Dine-In",
+      "date": "26/7/2026, 3:20:49 am",
+      "items": [
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 2
+        },
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 3
+        }
+      ],
+      "subtotal": 60,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 60,
+      "paymentMethod": "Cash",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016249711",
+      "timestamp": "2026-07-25T21:50:49.711Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-349512",
+      "tableNumber": "table 1",
+      "orderType": "Dine-In",
+      "date": "26/7/2026, 3:22:29 am",
+      "items": [
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 1
+        },
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 1
+        },
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 2
+        }
+      ],
+      "subtotal": 323,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 323,
+      "paymentMethod": "Cash",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016349540",
+      "timestamp": "2026-07-25T21:52:29.540Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-441850",
+      "tableNumber": "Parcel: dsgsdsfsfsdsdfsdf",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:24:01 am",
+      "items": [
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 2
+        }
+      ],
+      "subtotal": 298,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 298,
+      "paymentMethod": "Cash",
+      "customerName": "dsgsdsfsfsdsdfsdf",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016441868",
+      "timestamp": "2026-07-25T21:54:01.868Z"
+    },
+    {
+      "restaurantName": "MAHANKAL FOOD PARK",
+      "tagline": "Family Restaurant & Party Venue",
+      "address": "Mahankal Road,Jawad",
+      "phone": "+91 8770522218",
+      "currency": "Rs.",
+      "orderNumber": "BILL-490911",
+      "tableNumber": "Parcel (Takeaway)",
+      "orderType": "Takeaway",
+      "date": "26/7/2026, 3:24:50 am",
+      "items": [
+        {
+          "name": "Dal Tadka",
+          "price": 149,
+          "quantity": 2
+        },
+        {
+          "name": "Butter Roti",
+          "price": 15,
+          "quantity": 4
+        },
+        {
+          "name": "Plain Roti",
+          "price": 10,
+          "quantity": 3
+        }
+      ],
+      "subtotal": 388,
+      "taxAmount": 0,
+      "taxRate": 0,
+      "serviceCharge": 0,
+      "serviceChargeRate": 0,
+      "discountAmount": 0,
+      "totalAmount": 388,
+      "paymentMethod": "Cash",
+      "aboutUs": "Hall Available for All Parties",
+      "footerText": "Thank you for visiting! ",
+      "upiId": "8770522218@upi",
+      "paperWidth": "80mm",
+      "receiptHeaderNote": "",
+      "id": "1785016490928",
+      "timestamp": "2026-07-25T21:54:50.928Z"
+    }
+  ],
+  "drawer": {
+    "10": 0,
+    "20": 0,
+    "50": 0,
+    "100": 0,
+    "200": 0,
+    "500": 0
+  },
+  "expenses": []
+}
