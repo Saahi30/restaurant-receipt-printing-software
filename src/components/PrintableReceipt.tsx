@@ -2,6 +2,7 @@
 
 import React from "react";
 import QRCode from "react-qr-code";
+import { useTranslation } from "@/lib/i18n";
 
 /**
  * Builds a standard UPI deep-link (UPI Intent URI).
@@ -72,6 +73,7 @@ export interface ReceiptProps {
 }
 
 export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((props, ref) => {
+  const { t } = useTranslation();
   const {
     restaurantName,
     tagline,
@@ -198,12 +200,12 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
       {/* Bill & Customer Meta */}
       <div className="py-2 border-b border-dashed border-gray-400 text-xs">
         <div className="flex justify-between">
-          <span><span className="font-bold">Bill No:</span> {orderNumber}</span>
-          <span><span className="font-bold">Date:</span> {date.split(" ")[0]}</span>
+          <span><span className="font-bold">{t("Bill No")}:</span> {orderNumber}</span>
+          <span><span className="font-bold">{t("Date")}:</span> {date.split(" ")[0]}</span>
         </div>
         <div className="flex justify-between mt-0.5">
-          <span><span className="font-bold">Table:</span> <strong className="bg-gray-200 px-1 rounded">{tableNumber}</strong></span>
-          <span><span className="font-bold">Mode:</span> {orderType}</span>
+          <span><span className="font-bold">{t("Table")}:</span> <strong className="bg-gray-200 px-1 rounded">{tableNumber}</strong></span>
+          <span><span className="font-bold">{t("Mode")}:</span> {orderType}</span>
         </div>
         {customerName && (
           <div className="mt-1 pt-1 border-t border-dotted border-gray-300 text-[11px]">
@@ -221,10 +223,10 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
       <table className="w-full text-left border-collapse my-2">
         <thead>
           <tr className="border-b border-black text-xs font-bold">
-            <th className="py-1">Item</th>
-            <th className="py-1 text-center w-12">Qty</th>
-            <th className="py-1 text-right w-14">Rate</th>
-            <th className="py-1 text-right w-16">Total ({currency})</th>
+            <th className="py-1">{t("Item")}</th>
+            <th className="py-1 text-center w-12">{t("Qty")}</th>
+            <th className="py-1 text-right w-14">{t("Rate")}</th>
+            <th className="py-1 text-right w-16">{t("Total")} ({currency})</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-dotted divide-gray-300 text-xs">

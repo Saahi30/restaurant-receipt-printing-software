@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon } from "lucide-react";
 import Link from "next/link";
 import { PrintableReceipt } from "@/components/PrintableReceipt";
+import { useTranslation } from "@/lib/i18n";
 
 interface Table {
   id: string;
@@ -31,6 +32,7 @@ interface User {
 }
 
 export default function AdminPage() {
+  const { t, lang, toggleLang } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -62,6 +64,7 @@ export default function AdminPage() {
       try {
         const user = JSON.parse(savedSession);
         if (user.role === "admin") {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setIsAuthorized(true);
         } else {
           window.location.href = "/";
@@ -266,9 +269,12 @@ export default function AdminPage() {
           <Link href="/" className="text-slate-300 hover:text-white flex items-center gap-1 font-semibold text-sm">
             <ArrowLeft className="w-4 h-4" /> Back to POS
           </Link>
-          <h1 className="font-bold text-lg leading-tight text-amber-500">Admin Dashboard</h1>
+          <h1 className="font-bold text-lg leading-tight text-amber-500">{t("Admin Dashboard")}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={toggleLang} className="bg-slate-700 hover:bg-slate-600 text-white text-xs px-2 py-1 rounded">
+            {lang === "en" ? "Aअ" : "EN"}
+          </button>
           <button
             onClick={saveAll}
             disabled={saving}
@@ -308,7 +314,7 @@ export default function AdminPage() {
             {/* Tables Section */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h2 className="font-bold text-lg text-slate-800">Tables</h2>
+            <h2 className="font-bold text-lg text-slate-800">{t("Tables")}</h2>
             <button
               onClick={addTable}
               className="text-amber-600 hover:text-amber-700 font-semibold text-sm flex items-center gap-1"
@@ -337,7 +343,7 @@ export default function AdminPage() {
         {/* Categories Section */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h2 className="font-bold text-lg text-slate-800">Menu Categories</h2>
+            <h2 className="font-bold text-lg text-slate-800">{t("Menu Categories")}</h2>
             <button
               onClick={addCategory}
               className="text-amber-600 hover:text-amber-700 font-semibold text-sm flex items-center gap-1"
@@ -444,7 +450,7 @@ export default function AdminPage() {
                   value={u.password || ""}
                   onChange={(e) => updateUser(u.id, "password", e.target.value)}
                   className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm"
-                  placeholder="Password"
+                  placeholder={t("Password")}
                   type="text"
                 />
                 <select
@@ -663,9 +669,9 @@ export default function AdminPage() {
                       <th className="p-4">Date</th>
                       <th className="p-4">Bill No</th>
                       <th className="p-4">Table</th>
-                      <th className="p-4">Payment</th>
+                      <th className="p-4">{t("Payment")}</th>
                       <th className="p-4 text-right">Total (Rs.)</th>
-                      <th className="p-4 text-right print:hidden">Actions</th>
+                      <th className="p-4 text-right print:hidden">{t("Actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">

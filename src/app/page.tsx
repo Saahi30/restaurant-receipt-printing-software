@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import Link from "next/link";
+import { useTranslation } from "@/lib/i18n";
 
 interface User {
   id: string;
@@ -83,6 +84,7 @@ interface MenuItem {
 }
 
 export default function HomePage() {
+  const { t, lang, toggleLang } = useTranslation();
   const [tab, setTab] = useState<"billing" | "about">("billing");
   const [loading, setLoading] = useState(true);
   
@@ -306,9 +308,11 @@ export default function HomePage() {
       address: src.address,
       phone: src.phone,
       currency: src.currency,
+      // eslint-disable-next-line react-hooks/purity
       orderNumber: `BILL-${Date.now().toString().slice(-6)}`,
       tableNumber: tableName,
       orderType: tableName.startsWith("Parcel") ? "Takeaway" : "Dine-In",
+      // eslint-disable-next-line react-hooks/purity
       date: new Date().toLocaleString(),
       items: lines.map((l) => ({ name: l.name, price: l.price, quantity: l.quantity })),
       subtotal: sub,
@@ -447,7 +451,7 @@ export default function HomePage() {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">{settings.restaurantName}</h1>
-          <p className="text-center text-slate-500 mb-8">Select an account to login</p>
+          <p className="text-center text-slate-500 mb-8">{t("Select an account to login")}</p>
           
           {!selectedUserForLogin ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -474,9 +478,7 @@ export default function HomePage() {
                 <button 
                   onClick={() => setSelectedUserForLogin(null)}
                   className="text-sm text-slate-500 hover:text-slate-800 underline"
-                >
-                  Back
-                </button>
+                >{t("Back")}</button>
               </div>
               <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
                 {loginError && (
@@ -485,13 +487,13 @@ export default function HomePage() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Password</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">{t("Password")}</label>
                   <input
                     type="password"
                     value={loginPassword}
                     onChange={e => setLoginPassword(e.target.value)}
                     className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all"
-                    placeholder="Enter password"
+                    placeholder={t("Enter password")}
                     required
                     autoFocus
                   />
@@ -499,9 +501,7 @@ export default function HomePage() {
                 <button
                   type="submit"
                   className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-all mt-4"
-                >
-                  Login
-                </button>
+                >{t("Login")}</button>
               </form>
             </div>
           )}
@@ -532,14 +532,16 @@ export default function HomePage() {
           <div className="flex items-center gap-3 ml-4">
             {isAdmin && (
               <Link href="/admin" className="hidden sm:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">
-                <Shield className="w-4 h-4" /> Admin Access
-              </Link>
+                <Shield className="w-4 h-4" />{t("Admin Access")}</Link>
             )}
             <div className="text-sm font-medium text-slate-400 border-l border-slate-700 pl-3">
               {currentUser.username} ({currentUser.role})
             </div>
             <button onClick={handleLogout} className="text-slate-400 hover:text-white text-xs underline">
-              Logout
+              {t("Logout")}
+            </button>
+            <button onClick={toggleLang} className="ml-2 bg-slate-700 hover:bg-slate-600 text-white text-xs px-2 py-1 rounded">
+              {lang === "en" ? "Aअ" : "EN"}
             </button>
           </div>
         </div>
@@ -553,8 +555,7 @@ export default function HomePage() {
                 tab === "billing" ? "bg-amber-500 text-white" : "text-slate-300 hover:text-white"
               }`}
             >
-              <Receipt className="w-4 h-4" /> Billing
-            </button>
+              <Receipt className="w-4 h-4" />{t("Billing")}</button>
             {isAdmin && (
               <button
                 onClick={() => setTab("about")}
@@ -562,8 +563,7 @@ export default function HomePage() {
                   tab === "about" ? "bg-amber-500 text-white" : "text-slate-300 hover:text-white"
                 }`}
               >
-                <SettingsIcon className="w-4 h-4" /> Settings
-              </button>
+                <SettingsIcon className="w-4 h-4" />{t("Settings")}</button>
             )}
           </div>
 
@@ -583,15 +583,13 @@ export default function HomePage() {
               onClick={disconnectPrinter}
               className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
             >
-              <Usb className="w-4 h-4" /> Disconnect
-            </button>
+              <Usb className="w-4 h-4" />{t("Disconnect")}</button>
           ) : (
             <button
               onClick={connectPrinter}
               className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
             >
-              <Usb className="w-4 h-4" /> Detect Printer
-            </button>
+              <Usb className="w-4 h-4" />{t("Detect Printer")}</button>
           )}
         </div>
       </header>
@@ -608,7 +606,7 @@ export default function HomePage() {
         <>
           <div className="bg-white border-b border-slate-200 px-4 py-3 print:hidden">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between">
-              <span>Select Table</span>
+              <span>{t("Select Table")}</span>
               {tables.length === 0 && <span className="text-amber-500">No tables configured! Go to Admin.</span>}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -834,7 +832,7 @@ export default function HomePage() {
 
                 <div className="border-t border-slate-200 p-4 space-y-1.5 text-sm bg-white">
                   <div className="flex justify-between text-slate-600">
-                    <span>Subtotal</span>
+                    <span>{t("Subtotal")}</span>
                     <span className="font-mono">
                       {CURRENCY} {subtotal.toFixed(2)}
                     </span>
@@ -977,7 +975,7 @@ export default function HomePage() {
                 </h2>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Restaurant Name</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t("Restaurant Name")}</label>
                   <input
                     value={form.restaurantName}
                     onChange={(e) => setField("restaurantName", e.target.value)}
@@ -986,7 +984,7 @@ export default function HomePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Tagline</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t("Tagline")}</label>
                   <input
                     value={form.tagline}
                     onChange={(e) => setField("tagline", e.target.value)}
@@ -995,7 +993,7 @@ export default function HomePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Address</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t("Address")}</label>
                   <input
                     value={form.address}
                     onChange={(e) => setField("address", e.target.value)}
@@ -1005,7 +1003,7 @@ export default function HomePage() {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-1">
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Phone</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t("Phone")}</label>
                     <input
                       value={form.phone}
                       onChange={(e) => setField("phone", e.target.value)}
@@ -1042,7 +1040,7 @@ export default function HomePage() {
                   Enter your <b>UPI ID / VPA</b> (e.g. <span className="font-mono">mahankalfoodpark@okhdfcbank</span>).
                   A QR code is printed on every bill. When a customer scans it, their UPI app
                   (GPay, PhonePe, Paytm, BHIM) opens with your ID pre-filled and the <b>amount automatically
-                  set to that bill's total</b> — they only enter their PIN. Leave empty to hide the QR.
+                  set to that bill&apos;s total</b> — they only enter their PIN. Leave empty to hide the QR.
                 </p>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">UPI ID / VPA</label>
