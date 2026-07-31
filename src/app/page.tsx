@@ -110,6 +110,7 @@ export default function HomePage() {
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Udhaar">("Cash");
+  const [amountReceived, setAmountReceived] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [bills, setBills] = useState<BillsState>({});
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
@@ -240,6 +241,7 @@ export default function HomePage() {
 
   const clearBill = () => {
     setBills((prev) => ({ ...prev, [selectedTable]: [] }));
+    setAmountReceived("");
     if (selectedTable === "PARCEL") {
       setCustomerName("");
     }
@@ -248,6 +250,9 @@ export default function HomePage() {
   const subtotal = currentBill.reduce((a, l) => a + l.price * l.quantity, 0);
   const taxAmount = (subtotal * TAX_RATE) / 100;
   const total = subtotal + taxAmount;
+  const amountReceivedNum = parseFloat(amountReceived);
+  const hasAmountReceived = amountReceived.trim() !== "" && !Number.isNaN(amountReceivedNum);
+  const changeReturn = hasAmountReceived ? amountReceivedNum - total : null;
 
   // ---- Printer ----
   const connectPrinter = async () => {
@@ -332,6 +337,16 @@ export default function HomePage() {
     };
   };
 
+  /** Tender/change is logged for the biller only — never sent to print. */
+  const buildBillLogPayload = (data: ReceiptProps) => {
+    if (!hasAmountReceived) return data;
+    return {
+      ...data,
+      amountReceived: Math.round(amountReceivedNum * 100) / 100,
+      changeGiven: Math.round((amountReceivedNum - data.totalAmount) * 100) / 100,
+    };
+  };
+
   const makeBill = async () => {
     if (currentBill.length === 0) return;
     setPrinterError("");
@@ -339,12 +354,12 @@ export default function HomePage() {
     try {
       const data = buildReceiptData(settings, currentBill, currentTableName);
 
-      // Save bill to history
+      // Save bill to history (includes tender/change for biller reference only)
       try {
         await fetch("/api/bills", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(buildBillLogPayload(data)),
         });
       } catch (err) {
         console.error("Failed to save bill", err);
@@ -383,12 +398,12 @@ export default function HomePage() {
     const data = buildReceiptData(settings, currentBill, currentTableName);
     setPrintData(data);
     
-    // Save bill to history
+    // Save bill to history (includes tender/change for biller reference only)
     try {
       await fetch("/api/bills", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(buildBillLogPayload(data)),
       });
     } catch (err) {
       console.error("Failed to save bill", err);
@@ -859,7 +874,10 @@ export default function HomePage() {
                       {["Cash", "UPI", "Udhaar"].map((pm) => (
                         <button
                           key={pm}
-                          onClick={() => setPaymentMethod(pm as any)}
+                          onClick={() => {
+                            setPaymentMethod(pm as any);
+                            if (pm !== "Cash") setAmountReceived("");
+                          }}
                           className={`py-1.5 rounded-lg text-sm font-bold border transition-colors ${
                             paymentMethod === pm
                               ? pm === "Udhaar"
@@ -873,6 +891,55 @@ export default function HomePage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Cash tender — biller reference only (logged, never printed) */}
+                  {paymentMethod === "Cash" && currentBill.length > 0 && (
+                    <div className="pt-3 mt-2 border-t border-slate-100 space-y-2">
+                      <span className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
+                        Amount Received
+                        <span className="ml-1.5 font-medium normal-case text-slate-400">(not on bill)</span>
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-mono pointer-events-none">
+                          {CURRENCY}
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          inputMode="decimal"
+                          value={amountReceived}
+                          onChange={(e) => setAmountReceived(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                        />
+                      </div>
+                      {changeReturn !== null && (
+                        <div
+                          className={`flex justify-between items-center rounded-xl px-3 py-2.5 ${
+                            changeReturn >= 0
+                              ? "bg-emerald-50 border border-emerald-200"
+                              : "bg-red-50 border border-red-200"
+                          }`}
+                        >
+                          <span
+                            className={`text-sm font-bold ${
+                              changeReturn >= 0 ? "text-emerald-700" : "text-red-700"
+                            }`}
+                          >
+                            {changeReturn >= 0 ? "Return / Change" : "Short by"}
+                          </span>
+                          <span
+                            className={`font-extrabold font-mono text-xl ${
+                              changeReturn >= 0 ? "text-emerald-700" : "text-red-700"
+                            }`}
+                          >
+                            {CURRENCY} {Math.abs(changeReturn).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 pt-0 space-y-2 bg-white border-t border-slate-100 mt-auto">

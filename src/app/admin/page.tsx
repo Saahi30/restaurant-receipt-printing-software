@@ -671,6 +671,8 @@ export default function AdminPage() {
                       <th className="p-4">Table</th>
                       <th className="p-4">{t("Payment")}</th>
                       <th className="p-4 text-right">Total (Rs.)</th>
+                      <th className="p-4 text-right">Received</th>
+                      <th className="p-4 text-right">Return</th>
                       <th className="p-4 text-right print:hidden">{t("Actions")}</th>
                     </tr>
                   </thead>
@@ -695,6 +697,18 @@ export default function AdminPage() {
                         <td className="p-4 text-sm font-bold text-slate-800 font-mono text-right">
                           {b.totalAmount ? b.totalAmount.toFixed(2) : "0.00"}
                         </td>
+                        <td className="p-4 text-sm font-mono text-right text-slate-600">
+                          {typeof b.amountReceived === "number" ? b.amountReceived.toFixed(2) : "—"}
+                        </td>
+                        <td className="p-4 text-sm font-mono text-right">
+                          {typeof b.changeGiven === "number" ? (
+                            <span className={b.changeGiven >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>
+                              {b.changeGiven.toFixed(2)}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className="p-4 text-right print:hidden flex justify-end gap-2">
                           {b.paymentMethod === "Udhaar" && (
                             <button
@@ -715,7 +729,7 @@ export default function AdminPage() {
                     ))}
                     {filteredBills.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-400 font-medium text-sm">
+                        <td colSpan={8} className="p-8 text-center text-slate-400 font-medium text-sm">
                           No bills found for the selected time period.
                         </td>
                       </tr>
