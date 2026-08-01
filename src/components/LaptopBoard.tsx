@@ -17,6 +17,7 @@ import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
+import { getBrowserSupabase } from "@/lib/supabase-browser";
 
 type BillLine = { id: string; name: string; nameHi?: string; price: number; quantity: number };
 type Table = { id: string; name: string };
@@ -89,9 +90,11 @@ export function LaptopBoard({
   const [toast, setToast] = useState("");
   const portRef = useRef<any>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoPrintedRef = useRef<Set<string>>(new Set());
-  const autoPrintBusyRef = useRef(false);
+  const handledJobsRef = useRef<Set<string>>(new Set());
+  const jobBusyRef = useRef(false);
+  const jobQueueRef = useRef<Array<{ id: string; table_id: string; receipt: any }>>([]);
   const printingTablesRef = useRef<Set<string>>(new Set());
+  const processQueueRef = useRef<() => void>(() => {});
 
   const boardTables = useMemo(
     () => [{ id: "PARCEL", name: "PARCEL" }, ...tables],
@@ -116,11 +119,6 @@ export function LaptopBoard({
         ? `Parcel: ${selected.customerName}`
         : "Parcel (Takeaway)"
       : tables.find((t) => t.id === selectedId)?.name || selectedId || "";
-
-  const readyPrintKey = (session: TableSession) => {
-    const order = session.receipt?.orderNumber || "";
-    return `${session.tableId}:${order}:${session.updatedAt || ""}`;
-  };
 
   const loadSessions = async () => {
     try {
@@ -162,8 +160,7 @@ export function LaptopBoard({
 
   useEffect(() => {
     loadSessions();
-    // Poll often so admin bills auto-print quickly
-    const poll = setInterval(loadSessions, 1200);
+    const poll = setInterval(loadSessions, 4000);
     return () => clearInterval(poll);
   }, []);
 
@@ -298,7 +295,7 @@ export function LaptopBoard({
 
   const printReceipt = async (data: ReceiptProps) => {
     // Silent USB print only — never open the Windows print dialog.
-    if (!printerConnected || !portRef.current) {
+    if (!portRef.current) {
       throw new Error(t("Connect printer on this laptop first."));
     }
     setPrinterStatus(t("Printing..."));
@@ -340,6 +337,139 @@ export function LaptopBoard({
     setTimeout(() => setToast(""), 2000);
   };
 
+  /** Process one DB print job (Realtime or pending drain). */
+  const runPrintJob = async (job: { id: string; table_id: string; receipt: any }) => {
+    if (handledJobsRef.current.has(job.id)) return;
+    handledJobsRef.current.add(job.id);
+
+    const claimRes = await fetch("/api/print-jobs", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: job.id, action: "claim" }),
+    });
+    const claimJson = await claimRes.json().catch(() => ({}));
+    if (!claimJson.claimed) return;
+
+    setIsPrinting(true);
+    setPrinterError("");
+    try {
+      if (!portRef.current) {
+        throw new Error(t("Connect printer on this laptop first."));
+      }
+      const data = job.receipt as ReceiptProps;
+      if (!data?.items?.length) {
+        throw new Error("Empty receipt on print job");
+      }
+      await printReceipt(data);
+      await finishAndClear(job.table_id, data);
+      await fetch("/api/print-jobs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: job.id, action: "complete" }),
+      });
+      if (selectedId === job.table_id) setSelectedId(null);
+      setToast(t("Auto-printed"));
+      setTimeout(() => setToast(""), 2000);
+      loadSessions();
+    } catch (err: any) {
+      const msg = err.message || t("Print failed");
+      setPrinterError(msg);
+      handledJobsRef.current.delete(job.id);
+      await fetch("/api/print-jobs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: job.id, action: "fail", error: msg }),
+      }).catch(() => {});
+      throw err;
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const drainJobQueue = async () => {
+    if (jobBusyRef.current) return;
+    jobBusyRef.current = true;
+    try {
+      while (jobQueueRef.current.length > 0) {
+        if (!portRef.current) break;
+        const job = jobQueueRef.current.shift()!;
+        try {
+          await runPrintJob(job);
+        } catch {
+          /* logged */
+        }
+      }
+    } finally {
+      jobBusyRef.current = false;
+    }
+  };
+  processQueueRef.current = drainJobQueue;
+
+  const enqueueJob = (job: { id: string; table_id: string; receipt: any }) => {
+    if (handledJobsRef.current.has(job.id)) return;
+    if (jobQueueRef.current.some((j) => j.id === job.id)) return;
+    jobQueueRef.current.push(job);
+    processQueueRef.current();
+  };
+
+  // Admin generate bill → insert print_jobs → Realtime → print instantly (no Windows dialog)
+  useEffect(() => {
+    let channel: ReturnType<ReturnType<typeof getBrowserSupabase>["channel"]> | null = null;
+    try {
+      const supabase = getBrowserSupabase();
+      channel = supabase
+        .channel("print-jobs-live")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "print_jobs" },
+          (payload) => {
+            const row = payload.new as any;
+            if (!row || row.status !== "pending") return;
+            enqueueJob({
+              id: row.id,
+              table_id: row.table_id,
+              receipt: row.receipt,
+            });
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.error("Realtime subscribe failed", e);
+    }
+    return () => {
+      if (channel) {
+        try {
+          getBrowserSupabase().removeChannel(channel);
+        } catch {}
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Drain pending jobs when USB printer connects
+  useEffect(() => {
+    if (!printerConnected || !portRef.current) return;
+    const drainPending = async () => {
+      try {
+        const res = await fetch("/api/print-jobs");
+        if (!res.ok) return;
+        const json = await res.json();
+        for (const job of json.jobs || []) {
+          enqueueJob({
+            id: job.id,
+            table_id: job.table_id,
+            receipt: job.receipt,
+          });
+        }
+        processQueueRef.current();
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    drainPending();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printerConnected]);
+
   const printReadySession = async (session: TableSession) => {
     if (printingTablesRef.current.has(session.tableId)) return;
     printingTablesRef.current.add(session.tableId);
@@ -367,48 +497,17 @@ export function LaptopBoard({
     }
   };
 
-  // Auto-print as soon as a bill is marked ready (from phone/admin) — no click, no Windows dialog.
-  useEffect(() => {
-    if (!printerConnected || !portRef.current || autoPrintBusyRef.current) return;
-
-    const next = Object.values(sessions).find(
-      (s) =>
-        s.status === "ready" &&
-        s.receipt &&
-        !autoPrintedRef.current.has(readyPrintKey(s)) &&
-        !printingTablesRef.current.has(s.tableId)
-    );
-    if (!next) return;
-
-    const key = readyPrintKey(next);
-    autoPrintedRef.current.add(key);
-    autoPrintBusyRef.current = true;
-
-    printReadySession(next)
-      .catch(() => {
-        // Allow retry on next poll if print failed
-        autoPrintedRef.current.delete(key);
-      })
-      .finally(() => {
-        autoPrintBusyRef.current = false;
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions, printerConnected]);
-
   const handleTableClick = async (tableId: string) => {
     const session = getSession(tableId);
     if (session.status === "ready") {
-      // Manual fallback if auto-print hasn't run yet
-      if (!printerConnected) {
+      if (!portRef.current) {
         setPrinterError(t("Connect printer on this laptop first."));
         return;
       }
-      const key = readyPrintKey(session);
-      autoPrintedRef.current.add(key);
       try {
         await printReadySession(session);
       } catch {
-        autoPrintedRef.current.delete(key);
+        /* shown */
       }
       return;
     }

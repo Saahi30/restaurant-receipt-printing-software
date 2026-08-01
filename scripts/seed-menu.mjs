@@ -40,6 +40,8 @@ const menu = {
       { english: "Buttermilk", hindi: "छाछ", price: 15 },
       { english: "Curd Lassi", hindi: "दही लस्सी", price: 50 },
       { english: "Fried Masala Curd", hindi: "दही फ्राई मसाला", price: 100 },
+      { english: "Coffee", hindi: "कॉफी", price: 15 },
+      { english: "Tea", hindi: "चाय", price: 10 },
     ],
   },
   papad_salad: {

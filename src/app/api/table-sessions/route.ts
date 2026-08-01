@@ -3,7 +3,6 @@ import {
   clearSession,
   listSessions,
   markReady,
-  requireStationReady,
   upsertSession,
 } from "@/lib/table-sessions";
 
@@ -30,7 +29,6 @@ export async function PUT(request: Request) {
     }
 
     if (body.markReady) {
-      await requireStationReady();
       if (!body.receipt) {
         return NextResponse.json({ error: "receipt is required" }, { status: 400 });
       }
@@ -58,9 +56,6 @@ export async function PUT(request: Request) {
     });
     return NextResponse.json({ session });
   } catch (error: any) {
-    if (error.code === "STATION_OFFLINE") {
-      return NextResponse.json({ error: "Connect laptop", code: "STATION_OFFLINE" }, { status: 409 });
-    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

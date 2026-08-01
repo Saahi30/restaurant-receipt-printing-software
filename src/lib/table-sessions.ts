@@ -129,7 +129,7 @@ export async function markReady(input: {
   orderType?: string;
   updatedBy?: string;
 }): Promise<TableSession> {
-  return upsertSession({
+  const session = await upsertSession({
     tableId: input.tableId,
     items: input.items,
     customerName: input.customerName,
@@ -139,6 +139,64 @@ export async function markReady(input: {
     receipt: input.receipt,
     updatedBy: input.updatedBy,
   });
+
+  // Trigger laptop print instantly via Realtime print_jobs queue
+  await enqueuePrintJob({
+    tableId: input.tableId,
+    receipt: input.receipt,
+  });
+
+  return session;
+}
+
+export async function enqueuePrintJob(input: { tableId: string; receipt: any }) {
+  const supabase = getSupabase();
+  const id = `pj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const { error } = await supabase.from("print_jobs").insert({
+    id,
+    table_id: input.tableId,
+    receipt: input.receipt,
+    status: "pending",
+  });
+  if (error) throw error;
+  return id;
+}
+
+export async function claimPrintJob(id: string) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("print_jobs")
+    .update({ status: "printing" })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function completePrintJob(id: string, failed?: string) {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("print_jobs")
+    .update(
+      failed
+        ? { status: "failed", error: failed, printed_at: new Date().toISOString() }
+        : { status: "done", error: null, printed_at: new Date().toISOString() }
+    )
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function listPendingPrintJobs() {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("print_jobs")
+    .select("*")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data || [];
 }
 
 function stationIsReady(row: { online: boolean; printer_connected: boolean; last_seen: string | null }): boolean {

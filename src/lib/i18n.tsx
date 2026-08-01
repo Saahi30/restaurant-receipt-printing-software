@@ -95,7 +95,13 @@ export const translations: Record<string, Record<Language, string>> = {
   "Sending...": { en: "Sending...", hi: "भेजा जा रहा है..." },
   "Enter Name for Udhaar": { en: "Enter Name for Udhaar", hi: "उधार के लिए नाम दर्ज करें" },
   "Waiting on laptop...": { en: "Waiting on laptop...", hi: "लैपटॉप की प्रतीक्षा..." },
+  "Bill saved & printed": { en: "Bill saved & printed", hi: "बिल सेव और प्रिंट हो गया" },
+  "Browser print OK": { en: "Browser print OK", hi: "ब्राउज़र प्रिंट ठीक है" },
   "Sent to laptop": { en: "Sent to laptop", hi: "लैपटॉप पर भेज दिया" },
+  "Sent to laptop — printing…": {
+    en: "Sent to laptop — printing…",
+    hi: "लैपटॉप पर भेजा — प्रिंट हो रहा है…",
+  },
   "Connect laptop": { en: "Connect laptop", hi: "लैपटॉप कनेक्ट करें" },
   "Connect laptop — open the Laptop account on the PC and connect the printer.": {
     en: "Connect laptop — open the Laptop account on the PC and connect the printer.",

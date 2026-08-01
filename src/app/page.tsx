@@ -559,6 +559,41 @@ export default function HomePage() {
     };
   };
 
+  const printLocally = async (data: ReceiptProps) => {
+    // Prefer USB ESC/POS when connected; otherwise browser print (any device).
+    if (printerConnected && portRef.current) {
+      setPrinterStatus(t("Printing..."));
+      const escposData = {
+        ...data,
+        items: data.items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity,
+          notes: item.notes,
+        })),
+      };
+      const res = await fetch("/api/escpos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "receipt", data: escposData }),
+      });
+      const json = await res.json();
+      if (json.success && json.bytes) {
+        const writer = portRef.current.writable.getWriter();
+        await writer.write(new Uint8Array(json.bytes));
+        writer.releaseLock();
+        setPrinterStatus(t("Printed! Printer connected & ready"));
+        return;
+      }
+      throw new Error(json.error || "ESC/POS failed");
+    }
+
+    setPrintData(data);
+    await new Promise((r) => setTimeout(r, 120));
+    window.print();
+  };
+
   const makeBill = async () => {
     if (currentBill.length === 0 || !selectedTable) return;
     setPrinterError("");
@@ -568,38 +603,54 @@ export default function HomePage() {
       const data = buildReceiptData(settings, currentBill, currentTableName);
       const payload = buildBillLogPayload(data);
 
-      const res = await fetch("/api/table-sessions", {
-        method: "PUT",
+      // 1) Save bill to database (no laptop required)
+      const billRes = await fetch("/api/bills", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tableId: selectedTable,
-          items: currentBill,
-          customerName,
-          paymentMethod,
-          orderType: data.orderType,
-          markReady: true,
-          receipt: payload,
-          updatedBy: currentUser?.username,
-        }),
+        body: JSON.stringify(payload),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (json.code === "STATION_OFFLINE" || /connect laptop/i.test(json.error || "")) {
-          setBillStatusMsg(t("Connect laptop"));
-          setPrinterError(t("Connect laptop — open the Laptop account on the PC and connect the printer."));
-        } else {
-          setPrinterError(json.error || t("Could not send bill to laptop"));
-        }
-        return;
+      if (!billRes.ok) {
+        const err = await billRes.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save bill");
       }
-      if (json.session) {
-        setSessions((prev) => ({ ...prev, [json.session.tableId]: json.session }));
+
+      // 2) Clear table session (best-effort)
+      try {
+        await fetch("/api/table-sessions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tableId: selectedTable,
+            clear: true,
+            updatedBy: currentUser?.username,
+          }),
+        });
+      } catch {
+        /* ignore */
       }
-      setBillStatusMsg(t("Sent to laptop"));
+
+      setSessions((prev) => ({
+        ...prev,
+        [selectedTable]: {
+          tableId: selectedTable,
+          status: "empty",
+          items: [],
+          customerName: "",
+          paymentMethod: "Cash",
+          orderType: selectedTable === "PARCEL" ? "Takeaway" : "Dine-In",
+          receipt: null,
+        },
+      }));
       setAmountReceived("");
+      if (selectedTable === "PARCEL") setCustomerName("");
+
+      // 3) Print from this device
+      await printLocally(payload);
+      setBillStatusMsg(t("Bill saved & printed"));
       setTimeout(() => setBillStatusMsg(""), 2500);
+      setIsMobileCartOpen(false);
     } catch (err: any) {
-      setPrinterError(err.message || t("Could not send bill to laptop"));
+      setPrinterError(err.message || t("Print failed"));
     } finally {
       setIsPrinting(false);
     }
@@ -916,11 +967,13 @@ export default function HomePage() {
 
           <div
             className={`hidden md:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold ${
-              "bg-slate-700 text-slate-300 border border-slate-600"
+              printerConnected
+                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                : "bg-slate-700 text-slate-300 border border-slate-600"
             }`}
           >
-            <WifiOff className="w-3.5 h-3.5" />
-            <span>{t("Print via Laptop")}</span>
+            {printerConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+            <span>{printerConnected ? t("Printer connected & ready") : t("Browser print OK")}</span>
           </div>
         </div>
       </header>
@@ -1048,9 +1101,12 @@ export default function HomePage() {
                         key={`fast-${item.id}`}
                         onClick={() => addItem(item)}
                         disabled={!selectedTable}
-                        className="whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                        className="whitespace-nowrap px-5 py-3 rounded-xl font-bold text-base border-2 border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:border-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
                       >
-                        {localizedName(item, lang)} <span className="opacity-70 text-xs font-mono">({CURRENCY} {item.price})</span>
+                        {localizedName(item, lang)}{" "}
+                        <span className="opacity-80 text-sm font-mono font-extrabold">
+                          ({CURRENCY} {item.price})
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1059,15 +1115,15 @@ export default function HomePage() {
 
               {/* Category selector */}
               {categories.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
                   {categories.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => setSelectedCategory(c.id)}
-                      className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm border-2 transition-colors ${
+                      className={`whitespace-nowrap px-5 py-3 rounded-xl font-bold text-base border-2 transition-colors ${
                         selectedCategory === c.id
-                          ? "bg-slate-800 border-slate-800 text-white"
-                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                          ? "bg-slate-800 border-slate-800 text-white shadow-md"
+                          : "bg-white border-slate-200 text-slate-700 hover:border-slate-400"
                       }`}
                     >
                       {localizedName(c, lang)}
@@ -1076,29 +1132,29 @@ export default function HomePage() {
                 </div>
               )}
 
-              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+              <h2 className="text-base font-bold text-slate-700 tracking-wide">
                 {selectedTable ? `${t("Add Items to")} ${currentTableName}` : t("Select a table first")}
               </h2>
               
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {itemsToShow.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => addItem(item)}
                     disabled={!selectedTable}
-                    className="bg-white border-2 border-slate-200 hover:border-amber-400 hover:shadow-md disabled:opacity-50 disabled:hover:border-slate-200 disabled:cursor-not-allowed rounded-2xl p-4 text-left transition-all active:scale-95 flex flex-col justify-between h-32"
+                    className="bg-white border-2 border-slate-200 hover:border-amber-400 hover:shadow-lg disabled:opacity-50 disabled:hover:border-slate-200 disabled:cursor-not-allowed rounded-2xl px-4 py-4 text-left transition-all active:scale-[0.98] flex items-center justify-between gap-3 min-h-[88px]"
                   >
-                    <div>
-                      <div className="font-bold text-base text-slate-800 line-clamp-2">{localizedName(item, lang)}</div>
-                      <div className="text-amber-600 font-bold font-mono mt-1">
-                        {CURRENCY} {item.price.toFixed(2)}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-lg leading-snug text-slate-900">
+                        {localizedName(item, lang)}
+                      </div>
+                      <div className="text-amber-600 font-black font-mono text-xl mt-1.5">
+                        {CURRENCY} {item.price.toFixed(0)}
                       </div>
                     </div>
-                    <div className="mt-auto flex items-center justify-end">
-                      <span className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center">
-                        <Plus className="w-4 h-4" />
-                      </span>
-                    </div>
+                    <span className="shrink-0 w-12 h-12 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-md">
+                      <Plus className="w-6 h-6" strokeWidth={3} />
+                    </span>
                   </button>
                 ))}
                 
@@ -1115,66 +1171,75 @@ export default function HomePage() {
               </div>
             </section>
 
-            <section className={`lg:w-1/3 ${isMobileCartOpen ? 'fixed inset-0 z-50 bg-black/60 flex flex-col justify-end p-2 sm:p-4 pb-0' : 'hidden lg:block'}`}>
-              <div className="bg-white rounded-t-3xl lg:rounded-2xl border border-slate-200 shadow-2xl lg:shadow-sm flex flex-col overflow-hidden h-[85vh] lg:h-[calc(100vh-280px)] lg:min-h-[500px] lg:sticky lg:top-4 mt-auto w-full max-w-md mx-auto lg:max-w-none">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                  <h2 className="font-bold text-base text-slate-800 flex items-center gap-2">
-                    <Receipt className="w-5 h-5 text-amber-500" />
+            <section className={`lg:w-1/3 ${isMobileCartOpen ? 'fixed inset-0 z-50 bg-black/60 flex flex-col justify-end p-0 sm:p-4 pb-0' : 'hidden lg:block'}`}>
+              <div className="bg-white rounded-t-3xl lg:rounded-2xl border border-slate-200 shadow-2xl lg:shadow-sm flex flex-col overflow-hidden h-[92vh] sm:h-[85vh] lg:h-[calc(100vh-280px)] lg:min-h-[500px] lg:sticky lg:top-4 mt-auto w-full max-w-lg mx-auto lg:max-w-none">
+                <div className="px-4 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                  <h2 className="font-extrabold text-xl text-slate-800 flex items-center gap-2">
+                    <Receipt className="w-6 h-6 text-amber-500" />
                     Bill — {currentTableName}
                   </h2>
                   <div className="flex items-center gap-2">
                     {currentBill.length > 0 && (
                       <button
                         onClick={clearBill}
-                        className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-semibold bg-red-50 px-2 py-1 rounded"
+                        className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1 font-bold bg-red-50 px-3 py-1.5 rounded-lg"
                       >
-                        <Trash2 className="w-3.5 h-3.5" /> Clear
+                        <Trash2 className="w-4 h-4" /> Clear
                       </button>
                     )}
                     {isMobileCartOpen && (
-                      <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-600 bg-white border border-slate-200 rounded-full w-7 h-7 flex items-center justify-center shadow-sm">
+                      <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-full w-10 h-10 flex items-center justify-center shadow-sm text-lg font-bold">
                         ✕
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="flex-1 p-3 overflow-y-auto bg-slate-50">
+                <div className="flex-1 p-3 overflow-y-auto bg-slate-100">
                   {currentBill.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
-                      <Receipt className="w-10 h-10 mb-2 stroke-1 opacity-50" />
-                      <p className="text-sm font-medium">No items yet</p>
-                      <p className="text-xs mt-1">Tap an item on the left to add it</p>
+                      <Receipt className="w-12 h-12 mb-2 stroke-1 opacity-50" />
+                      <p className="text-base font-semibold">No items yet</p>
+                      <p className="text-sm mt-1">Tap a menu item to add it</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {currentBill.map((line) => (
-                        <div key={line.id} className="flex flex-col bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="font-semibold text-sm text-slate-800 pr-2">{localizedName(line, lang)}</div>
-                            <div className="font-bold font-mono text-sm text-slate-800 whitespace-nowrap">
-                              {CURRENCY} {(line.price * line.quantity).toFixed(2)}
+                        <div
+                          key={line.id}
+                          className="flex flex-col bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm"
+                        >
+                          <div className="flex justify-between items-start gap-3 mb-3">
+                            <div className="font-extrabold text-lg leading-snug text-slate-900 pr-1 min-w-0">
+                              {localizedName(line, lang)}
+                            </div>
+                            <div className="font-black font-mono text-lg text-amber-600 whitespace-nowrap shrink-0">
+                              {CURRENCY} {(line.price * line.quantity).toFixed(0)}
                             </div>
                           </div>
-                          
+
                           <div className="flex justify-between items-center">
-                            <div className="text-xs text-slate-500 font-mono">
-                              {CURRENCY} {line.price.toFixed(2)} each
+                            <div className="text-sm text-slate-500 font-mono font-semibold">
+                              {CURRENCY} {line.price.toFixed(0)} × {line.quantity}
                             </div>
-                            
-                            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+
+                            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl p-1">
                               <button
                                 onClick={() => changeQty(line.id, -1)}
-                                className="w-7 h-7 rounded-md bg-white hover:bg-slate-50 shadow-sm flex items-center justify-center text-slate-600"
+                                className="w-11 h-11 rounded-xl bg-white hover:bg-slate-50 shadow-sm flex items-center justify-center text-slate-700 active:scale-95"
+                                aria-label="Decrease"
                               >
-                                <Minus className="w-3.5 h-3.5" />
+                                <Minus className="w-5 h-5" strokeWidth={2.5} />
                               </button>
-                              <span className="w-8 text-center font-bold text-sm text-slate-700">{line.quantity}</span>
+                              <span className="w-10 text-center font-black text-xl text-slate-900 tabular-nums">
+                                {line.quantity}
+                              </span>
                               <button
                                 onClick={() => changeQty(line.id, 1)}
-                                className="w-7 h-7 rounded-md bg-white hover:bg-slate-50 shadow-sm flex items-center justify-center text-slate-600"
+                                className="w-11 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 shadow-sm flex items-center justify-center text-white active:scale-95"
+                                aria-label="Increase"
                               >
-                                <Plus className="w-3.5 h-3.5" />
+                                <Plus className="w-5 h-5" strokeWidth={2.5} />
                               </button>
                             </div>
                           </div>
@@ -1296,17 +1361,15 @@ export default function HomePage() {
 
                   <button
                     onClick={makeBill}
-                    disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim()) || currentSession?.status === "ready"}
+                    disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim())}
                     className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
                   >
                     {isPrinting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
                     {isPrinting
-                      ? t("Sending...")
+                      ? t("Printing...")
                       : paymentMethod === "Udhaar" && !customerName.trim()
                       ? t("Enter Name for Udhaar")
-                      : currentSession?.status === "ready"
-                      ? t("Waiting on laptop...")
-                      : t("Generate Bill")}
+                      : t("Print Bill")}
                   </button>
                 </div>
               </div>
@@ -1355,7 +1418,7 @@ export default function HomePage() {
                     onClick={() => { setShowPreviewModal(false); makeBill(); }}
                     className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
                   >
-                    <Printer className="w-5 h-5" /> {t("Generate Bill")}
+                    <Printer className="w-5 h-5" /> {t("Print Bill")}
                   </button>
                 </div>
               </div>
