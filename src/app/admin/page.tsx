@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon } from "lucide-react";
+import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon, UtensilsCrossed, IndianRupee } from "lucide-react";
 import Link from "next/link";
 import { PrintableReceipt } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
+import { localizedName } from "@/lib/localized-name";
 
 interface Table {
   id: string;
@@ -57,7 +58,9 @@ export default function AdminPage() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [tab, setTab] = useState<"manage" | "reports">("reports");
   
-  const [dateFilter, setDateFilter] = useState<"today" | "7days" | "month" | "all">("today");
+  const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
+  const [customFrom, setCustomFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
   
   const [reprintData, setReprintData] = useState<any>(null);
 
@@ -181,42 +184,87 @@ export default function AdminPage() {
     setUsers(users.filter((u) => u.id !== id));
   };
 
-  const filteredBills = useMemo(() => {
+  const inSelectedPeriod = (iso: string | undefined) => {
+    if (!iso) return dateFilter !== "custom";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return false;
     const now = new Date();
-    return bills.filter(b => {
-      if (!b.timestamp) return true;
-      const bDate = new Date(b.timestamp);
-      if (dateFilter === "today") {
-        return bDate.toDateString() === now.toDateString();
-      }
-      if (dateFilter === "7days") {
-        const diff = now.getTime() - bDate.getTime();
-        return diff <= 7 * 24 * 60 * 60 * 1000;
-      }
-      if (dateFilter === "month") {
-        return bDate.getMonth() === now.getMonth() && bDate.getFullYear() === now.getFullYear();
-      }
-      return true; // "all"
-    });
-  }, [bills, dateFilter]);
 
-  const filteredExpenses = useMemo(() => {
-    const now = new Date();
-    return expenses.filter(e => {
-      if (!e.timestamp) return true;
-      const eDate = new Date(e.timestamp);
-      if (dateFilter === "today") return eDate.toDateString() === now.toDateString();
-      if (dateFilter === "7days") return (now.getTime() - eDate.getTime()) <= 7 * 24 * 60 * 60 * 1000;
-      if (dateFilter === "month") return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
-      return true;
-    });
-  }, [expenses, dateFilter]);
+    if (dateFilter === "today") {
+      return d.toDateString() === now.toDateString();
+    }
+    if (dateFilter === "week") {
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - 6);
+      return d >= start && d <= now;
+    }
+    if (dateFilter === "month") {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+    // custom
+    if (!customFrom || !customTo) return true;
+    const from = new Date(customFrom + "T00:00:00");
+    const to = new Date(customTo + "T23:59:59.999");
+    return d >= from && d <= to;
+  };
 
-  const pendingKhata = filteredBills.filter(b => b.paymentMethod === "Udhaar").reduce((acc, b) => acc + (b.totalAmount || 0), 0);
-  const totalRevenue = filteredBills.filter(b => b.paymentMethod !== "Udhaar").reduce((acc, b) => acc + (b.totalAmount || 0), 0);
-  const totalTax = filteredBills.filter(b => b.paymentMethod !== "Udhaar").reduce((acc, b) => acc + (b.taxAmount || 0), 0);
+  const filteredBills = useMemo(
+    () => bills.filter((b) => inSelectedPeriod(b.timestamp)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bills, dateFilter, customFrom, customTo]
+  );
+
+  const filteredExpenses = useMemo(
+    () => expenses.filter((e) => inSelectedPeriod(e.timestamp)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expenses, dateFilter, customFrom, customTo]
+  );
+
+  const pendingKhata = filteredBills
+    .filter((b) => b.paymentMethod === "Udhaar")
+    .reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+  const cashSales = filteredBills
+    .filter((b) => (b.paymentMethod || "Cash") === "Cash")
+    .reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+  const upiSales = filteredBills
+    .filter((b) => b.paymentMethod === "UPI")
+    .reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+  const totalRevenue = filteredBills
+    .filter((b) => b.paymentMethod !== "Udhaar")
+    .reduce((acc, b) => acc + (b.totalAmount || 0), 0);
+  const grossSales = filteredBills.reduce((acc, b) => acc + (b.totalAmount || 0), 0);
   const totalExpenses = filteredExpenses.reduce((acc, e) => acc + e.amount, 0);
   const expectedCash = totalRevenue - totalExpenses;
+  const netEarnings = totalRevenue - totalExpenses;
+
+  const dishSales = useMemo(() => {
+    type Row = { name: string; nameHi?: string; qty: number; amount: number };
+    const map = new Map<string, Row>();
+    for (const bill of filteredBills) {
+      const items = Array.isArray(bill.items) ? bill.items : [];
+      for (const item of items) {
+        const name = String(item.name || "Unknown");
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        const prev = map.get(name) || { name, nameHi: item.nameHi || "", qty: 0, amount: 0 };
+        prev.qty += qty;
+        prev.amount += price * qty;
+        if (!prev.nameHi && item.nameHi) prev.nameHi = item.nameHi;
+        map.set(name, prev);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount || b.qty - a.qty);
+  }, [filteredBills]);
+
+  const periodLabel =
+    dateFilter === "today"
+      ? t("Daily")
+      : dateFilter === "week"
+      ? t("Weekly")
+      : dateFilter === "month"
+      ? t("Monthly")
+      : `${customFrom || "…"} → ${customTo || "…"}`;
 
   const handleAddExpense = () => {
     if (!newExpenseDesc || !newExpenseAmount) return;
@@ -511,32 +559,58 @@ export default function AdminPage() {
         )}
         {tab === "reports" && (
           <div className="space-y-6 print:block">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-              <div className="flex bg-white border border-slate-200 rounded-lg p-1 w-fit shadow-sm">
-                {(["today", "7days", "month", "all"] as const).map(filter => (
-                  <button
-                    key={filter}
-                    onClick={() => setDateFilter(filter)}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
-                      dateFilter === filter ? "bg-slate-800 text-white shadow" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                    }`}
-                  >
-                    {filter === "today" && t("Today")}
-                    {filter === "7days" && t("Last 7 Days")}
-                    {filter === "month" && t("This Month")}
-                    {filter === "all" && t("All Time")}
-                  </button>
-                ))}
+            <div className="flex flex-col gap-3 print:hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap bg-white border border-slate-200 rounded-lg p-1 w-fit shadow-sm">
+                  {([
+                    ["today", t("Daily")],
+                    ["week", t("Weekly")],
+                    ["month", t("Monthly")],
+                    ["custom", t("Custom")],
+                  ] as const).map(([filter, label]) => (
+                    <button
+                      key={filter}
+                      onClick={() => setDateFilter(filter)}
+                      className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+                        dateFilter === filter
+                          ? "bg-slate-800 text-white shadow"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    setReprintData(null);
+                    setTimeout(() => window.print(), 50);
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-colors"
+                >
+                  <Printer className="w-4 h-4" /> {t("Print Report")}
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setReprintData(null);
-                  setTimeout(() => window.print(), 50);
-                }}
-                className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-colors"
-              >
-                <Printer className="w-4 h-4" /> {t("Print Report")}
-              </button>
+
+              {dateFilter === "custom" && (
+                <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t("From")}</label>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400"
+                  />
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t("To")}</label>
+                  <input
+                    type="date"
+                    value={customTo}
+                    min={customFrom}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400"
+                  />
+                </div>
+              )}
             </div>
 
             {reprintData ? (
@@ -546,30 +620,147 @@ export default function AdminPage() {
             ) : (
               <div id="thermal-print-section" className="hidden print:block mb-6 text-center">
                 <h2 className="text-xl font-bold">Sales & Expense Report</h2>
-                <p className="text-sm">Filter: {dateFilter.toUpperCase()} | Generated: {new Date().toLocaleString()}</p>
+                <p className="text-sm">
+                  Period: {periodLabel} | Generated: {new Date().toLocaleString()}
+                </p>
               </div>
             )}
 
-            <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 ${reprintData ? 'print:hidden' : ''}`}>
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-center items-center">
-                <span className="text-slate-500 font-semibold text-sm mb-1 uppercase tracking-wider text-center">Net Revenue</span>
-                <span className="text-2xl font-black text-amber-500 font-mono">Rs. {totalRevenue.toFixed(2)}</span>
+            {/* Earnings summary */}
+            <div className={`${reprintData ? "print:hidden" : ""}`}>
+              <div className="flex items-center gap-2 mb-3">
+                <IndianRupee className="w-5 h-5 text-amber-500" />
+                <h2 className="font-bold text-lg text-slate-800">{t("Earnings")}</h2>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide ml-1">
+                  ({periodLabel})
+                </span>
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-center items-center">
-                <span className="text-slate-500 font-semibold text-sm mb-1 uppercase tracking-wider text-center">Total Expenses</span>
-                <span className="text-2xl font-black text-red-500 font-mono">Rs. {totalExpenses.toFixed(2)}</span>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    {t("Gross Sales")}
+                  </div>
+                  <div className="text-xl font-black text-slate-900 font-mono">Rs. {grossSales.toFixed(0)}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    {t("Collected")}
+                  </div>
+                  <div className="text-xl font-black text-amber-600 font-mono">Rs. {totalRevenue.toFixed(0)}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">{t("Cash")}</div>
+                  <div className="text-xl font-black text-slate-800 font-mono">Rs. {cashSales.toFixed(0)}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">UPI</div>
+                  <div className="text-xl font-black text-slate-800 font-mono">Rs. {upiSales.toFixed(0)}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-red-100 p-4 shadow-sm bg-red-50/40">
+                  <div className="text-[11px] font-bold text-red-600 uppercase tracking-wider mb-1">
+                    {t("Pending Khata")}
+                  </div>
+                  <div className="text-xl font-black text-red-600 font-mono">Rs. {pendingKhata.toFixed(0)}</div>
+                </div>
+                <div className="bg-white rounded-2xl border border-emerald-100 p-4 shadow-sm bg-emerald-50/40">
+                  <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1">
+                    {t("Net Earnings")}
+                  </div>
+                  <div className="text-xl font-black text-emerald-700 font-mono">Rs. {netEarnings.toFixed(0)}</div>
+                  <div className="text-[10px] text-emerald-600/80 mt-0.5">
+                    {filteredBills.length} {t("bills")} · Rs. {totalExpenses.toFixed(0)} {t("expenses")}
+                  </div>
+                </div>
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-center items-center bg-emerald-50/50">
-                <span className="text-emerald-700 font-semibold text-sm mb-1 uppercase tracking-wider text-center">Expected Cash</span>
+            </div>
+
+            {/* Dish-wise breakdown */}
+            <section className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden ${reprintData ? "print:hidden" : ""}`}>
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <UtensilsCrossed className="w-5 h-5 text-amber-500" />
+                  <h2 className="font-bold text-lg text-slate-800">{t("Dish-wise Sales")}</h2>
+                </div>
+                <span className="text-xs font-semibold text-slate-400">
+                  {dishSales.length} {t("dishes")}
+                </span>
+              </div>
+              <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+                <table className="w-full text-left border-collapse min-w-[480px]">
+                  <thead className="sticky top-0 bg-slate-50 z-10">
+                    <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+                      <th className="p-3 w-10">#</th>
+                      <th className="p-3">{t("Dish")}</th>
+                      <th className="p-3 text-right">{t("Qty Sold")}</th>
+                      <th className="p-3 text-right">{t("Amount")} (Rs.)</th>
+                      <th className="p-3 text-right hidden sm:table-cell">%</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dishSales.map((row, i) => {
+                      const pct = grossSales > 0 ? (row.amount / grossSales) * 100 : 0;
+                      return (
+                        <tr key={row.name} className="hover:bg-slate-50/80">
+                          <td className="p-3 text-xs text-slate-400 font-mono">{i + 1}</td>
+                          <td className="p-3 text-sm font-semibold text-slate-800">
+                            {localizedName(row, lang)}
+                            {lang === "hi" && row.nameHi ? (
+                              <div className="text-[10px] font-normal text-slate-400">{row.name}</div>
+                            ) : null}
+                          </td>
+                          <td className="p-3 text-sm font-bold font-mono text-right text-slate-700">{row.qty}</td>
+                          <td className="p-3 text-sm font-black font-mono text-right text-amber-600">
+                            {row.amount.toFixed(2)}
+                          </td>
+                          <td className="p-3 text-xs font-mono text-right text-slate-400 hidden sm:table-cell">
+                            {pct.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {dishSales.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400 font-medium text-sm">
+                          {t("No sales in this period.")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {dishSales.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+                        <td className="p-3" colSpan={2}>
+                          {t("Total")}
+                        </td>
+                        <td className="p-3 text-right font-mono">
+                          {dishSales.reduce((a, r) => a + r.qty, 0)}
+                        </td>
+                        <td className="p-3 text-right font-mono text-amber-700">
+                          {dishSales.reduce((a, r) => a + r.amount, 0).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-right hidden sm:table-cell">100%</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </section>
+
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${reprintData ? "print:hidden" : ""}`}>
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-center items-center">
+                <span className="text-slate-500 font-semibold text-sm mb-1 uppercase tracking-wider text-center">
+                  {t("Expected Cash")}
+                </span>
                 <span className="text-2xl font-black text-emerald-600 font-mono">Rs. {expectedCash.toFixed(2)}</span>
+                <span className="text-xs text-slate-400 mt-1">
+                  {t("Collected")} − {t("expenses")}
+                </span>
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-center items-center">
-                <span className="text-slate-500 font-semibold text-sm mb-1 uppercase tracking-wider text-center">Total Bills</span>
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-center items-center">
+                <span className="text-slate-500 font-semibold text-sm mb-1 uppercase tracking-wider text-center">
+                  {t("Total Bills")}
+                </span>
                 <span className="text-2xl font-black text-slate-800 font-mono">{filteredBills.length}</span>
-              </div>
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-center items-center bg-red-50/50">
-                <span className="text-red-700 font-semibold text-sm mb-1 uppercase tracking-wider text-center">Pending Khata</span>
-                <span className="text-2xl font-black text-red-600 font-mono">Rs. {pendingKhata.toFixed(2)}</span>
               </div>
             </div>
 

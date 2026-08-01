@@ -32,6 +32,7 @@ type TableSession = {
   paymentMethod: string;
   orderType: string;
   receipt: any | null;
+  updatedAt?: string | null;
 };
 
 type AppSettings = {
@@ -88,6 +89,9 @@ export function LaptopBoard({
   const [toast, setToast] = useState("");
   const portRef = useRef<any>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoPrintedRef = useRef<Set<string>>(new Set());
+  const autoPrintBusyRef = useRef(false);
+  const printingTablesRef = useRef<Set<string>>(new Set());
 
   const boardTables = useMemo(
     () => [{ id: "PARCEL", name: "PARCEL" }, ...tables],
@@ -112,6 +116,11 @@ export function LaptopBoard({
         ? `Parcel: ${selected.customerName}`
         : "Parcel (Takeaway)"
       : tables.find((t) => t.id === selectedId)?.name || selectedId || "";
+
+  const readyPrintKey = (session: TableSession) => {
+    const order = session.receipt?.orderNumber || "";
+    return `${session.tableId}:${order}:${session.updatedAt || ""}`;
+  };
 
   const loadSessions = async () => {
     try {
@@ -153,7 +162,8 @@ export function LaptopBoard({
 
   useEffect(() => {
     loadSessions();
-    const poll = setInterval(loadSessions, 2500);
+    // Poll often so admin bills auto-print quickly
+    const poll = setInterval(loadSessions, 1200);
     return () => clearInterval(poll);
   }, []);
 
@@ -287,36 +297,36 @@ export function LaptopBoard({
   };
 
   const printReceipt = async (data: ReceiptProps) => {
-    if (printerConnected && portRef.current) {
-      setPrinterStatus("Printing...");
-      const escposData = {
-        ...data,
-        lang: data.lang || lang,
-        items: data.items.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.price * item.quantity,
-          notes: item.notes,
-        })),
-      };
-      const res = await fetch("/api/escpos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "receipt", data: escposData }),
-      });
-      const json = await res.json();
-      if (json.success && json.bytes) {
-        const writer = portRef.current.writable.getWriter();
-        await writer.write(new Uint8Array(json.bytes));
-        writer.releaseLock();
-        setPrinterStatus("Printed! Printer connected & ready");
-        return;
-      }
-      throw new Error(json.error || "ESC/POS failed");
+    // Silent USB print only — never open the Windows print dialog.
+    if (!printerConnected || !portRef.current) {
+      throw new Error(t("Connect printer on this laptop first."));
     }
-    setPrintData(data);
-    setTimeout(() => window.print(), 150);
+    setPrinterStatus(t("Printing..."));
+    const escposData = {
+      ...data,
+      lang: data.lang || lang,
+      items: data.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.price * item.quantity,
+        notes: item.notes,
+      })),
+    };
+    const res = await fetch("/api/escpos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "receipt", data: escposData }),
+    });
+    const json = await res.json();
+    if (json.success && json.bytes) {
+      const writer = portRef.current.writable.getWriter();
+      await writer.write(new Uint8Array(json.bytes));
+      writer.releaseLock();
+      setPrinterStatus(t("Printed! Printer connected & ready"));
+      return;
+    }
+    throw new Error(json.error || "ESC/POS failed");
   };
 
   const finishAndClear = async (tableId: string, data: ReceiptProps) => {
@@ -330,30 +340,75 @@ export function LaptopBoard({
     setTimeout(() => setToast(""), 2000);
   };
 
+  const printReadySession = async (session: TableSession) => {
+    if (printingTablesRef.current.has(session.tableId)) return;
+    printingTablesRef.current.add(session.tableId);
+    setIsPrinting(true);
+    setPrinterError("");
+    try {
+      const name =
+        session.tableId === "PARCEL"
+          ? session.customerName
+            ? `Parcel: ${session.customerName}`
+            : "Parcel (Takeaway)"
+          : tables.find((t) => t.id === session.tableId)?.name || session.tableId;
+      const data = (session.receipt as ReceiptProps) || buildReceipt(session, name);
+      await printReceipt(data);
+      await finishAndClear(session.tableId, data);
+      if (selectedId === session.tableId) setSelectedId(null);
+      setToast(t("Auto-printed"));
+      setTimeout(() => setToast(""), 2000);
+    } catch (err: any) {
+      setPrinterError(err.message || t("Print failed"));
+      throw err;
+    } finally {
+      printingTablesRef.current.delete(session.tableId);
+      setIsPrinting(false);
+    }
+  };
+
+  // Auto-print as soon as a bill is marked ready (from phone/admin) — no click, no Windows dialog.
+  useEffect(() => {
+    if (!printerConnected || !portRef.current || autoPrintBusyRef.current) return;
+
+    const next = Object.values(sessions).find(
+      (s) =>
+        s.status === "ready" &&
+        s.receipt &&
+        !autoPrintedRef.current.has(readyPrintKey(s)) &&
+        !printingTablesRef.current.has(s.tableId)
+    );
+    if (!next) return;
+
+    const key = readyPrintKey(next);
+    autoPrintedRef.current.add(key);
+    autoPrintBusyRef.current = true;
+
+    printReadySession(next)
+      .catch(() => {
+        // Allow retry on next poll if print failed
+        autoPrintedRef.current.delete(key);
+      })
+      .finally(() => {
+        autoPrintBusyRef.current = false;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, printerConnected]);
+
   const handleTableClick = async (tableId: string) => {
     const session = getSession(tableId);
     if (session.status === "ready") {
-      if (!printerConnected && !("serial" in navigator)) {
-        setPrinterError("Connect printer on this laptop first.");
+      // Manual fallback if auto-print hasn't run yet
+      if (!printerConnected) {
+        setPrinterError(t("Connect printer on this laptop first."));
         return;
       }
-      setIsPrinting(true);
-      setPrinterError("");
+      const key = readyPrintKey(session);
+      autoPrintedRef.current.add(key);
       try {
-        const name =
-          tableId === "PARCEL"
-            ? session.customerName
-              ? `Parcel: ${session.customerName}`
-              : "Parcel (Takeaway)"
-            : tables.find((t) => t.id === tableId)?.name || tableId;
-        const data = (session.receipt as ReceiptProps) || buildReceipt(session, name);
-        await printReceipt(data);
-        await finishAndClear(tableId, data);
-        setSelectedId(null);
-      } catch (err: any) {
-        setPrinterError(err.message || "Print failed");
-      } finally {
-        setIsPrinting(false);
+        await printReadySession(session);
+      } catch {
+        autoPrintedRef.current.delete(key);
       }
       return;
     }
@@ -494,7 +549,7 @@ export function LaptopBoard({
           <div className="flex gap-3 text-xs font-semibold">
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500" /> {t("Empty")}</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400" /> {t("Ongoing")}</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> {t("Bill Ready — click to print")}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> {t("Bill Ready — auto-prints")}</span>
           </div>
           <button onClick={loadSessions} className="text-slate-400 hover:text-white text-sm flex items-center gap-1">
             <RefreshCw className="w-4 h-4" /> {t("Refresh")}
@@ -520,7 +575,7 @@ export function LaptopBoard({
                 {qty > 0 && <div className="mt-2 text-sm font-semibold opacity-90">{qty} {t("items")}</div>}
                 {s.status === "ready" && (
                   <div className="mt-3 inline-flex items-center gap-1 text-sm font-bold bg-black/20 px-2 py-1 rounded-lg">
-                    <Printer className="w-4 h-4" /> {t("Print")}
+                    <Printer className="w-4 h-4" /> {isPrinting ? t("Printing...") : t("Auto-printing…")}
                   </div>
                 )}
               </button>
