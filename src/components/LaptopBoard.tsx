@@ -16,11 +16,12 @@ import {
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
+import { localizedName } from "@/lib/localized-name";
 
-type BillLine = { id: string; name: string; price: number; quantity: number };
+type BillLine = { id: string; name: string; nameHi?: string; price: number; quantity: number };
 type Table = { id: string; name: string };
-type MenuItem = { id: string; categoryId: string; name: string; price: number; isFavorite?: boolean };
-type Category = { id: string; name: string };
+type MenuItem = { id: string; categoryId: string; name: string; nameHi?: string; price: number; isFavorite?: boolean };
+type Category = { id: string; name: string; nameHi?: string };
 type SessionStatus = "empty" | "ongoing" | "ready";
 
 type TableSession = {
@@ -266,7 +267,7 @@ export function LaptopBoard({
       tableNumber: tableName,
       orderType: tableName.startsWith("Parcel") ? "Takeaway" : "Dine-In",
       date: new Date().toLocaleString(),
-      items: lines.map((l) => ({ name: l.name, price: l.price, quantity: l.quantity })),
+      items: lines.map((l) => ({ name: l.name, nameHi: l.nameHi, price: l.price, quantity: l.quantity })),
       subtotal: sub,
       taxAmount: tax,
       taxRate: rate,
@@ -375,7 +376,14 @@ export function LaptopBoard({
     const lines = [...selected.items];
     const idx = lines.findIndex((l) => l.id === item.id);
     if (idx > -1) lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + 1 };
-    else lines.push({ id: item.id, name: item.name, price: item.price, quantity: 1 });
+    else
+      lines.push({
+        id: item.id,
+        name: item.name,
+        nameHi: item.nameHi || "",
+        price: item.price,
+        quantity: 1,
+      });
     updateSelectedItems(lines);
   };
 
@@ -555,7 +563,7 @@ export function LaptopBoard({
               {selected.items.map((l) => (
                 <div key={l.id} className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2">
                   <div>
-                    <div className="font-semibold text-sm">{l.name}</div>
+                    <div className="font-semibold text-sm">{localizedName(l, lang)}</div>
                     <div className="text-xs text-slate-400">
                       {settings.currency}
                       {l.price} × {l.quantity}
@@ -584,7 +592,7 @@ export function LaptopBoard({
                       selectedCategory === c.id ? "bg-amber-500 text-white" : "bg-slate-800 text-slate-300"
                     }`}
                   >
-                    {c.name}
+                    {localizedName(c, lang)}
                   </button>
                 ))}
               </div>
@@ -595,7 +603,7 @@ export function LaptopBoard({
                     onClick={() => addItem(m)}
                     className="bg-slate-800 hover:bg-slate-700 rounded-xl p-3 text-left"
                   >
-                    <div className="font-semibold text-sm">{m.name}</div>
+                    <div className="font-semibold text-sm">{localizedName(m, lang)}</div>
                     <div className="text-xs text-amber-400 mt-1">
                       {settings.currency}
                       {m.price}

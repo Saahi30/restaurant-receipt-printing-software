@@ -15,12 +15,14 @@ interface Table {
 interface Category {
   id: string;
   name: string;
+  nameHi?: string;
 }
 
 interface MenuItem {
   id: string;
   categoryId: string;
   name: string;
+  nameHi?: string;
   price: number;
   isFavorite?: boolean;
 }
@@ -139,10 +141,10 @@ export default function AdminPage() {
 
   // --- Categories ---
   const addCategory = () => {
-    setCategories([...categories, { id: Date.now().toString(), name: "New Category" }]);
+    setCategories([...categories, { id: Date.now().toString(), name: "New Category", nameHi: "" }]);
   };
-  const updateCategory = (id: string, name: string) => {
-    setCategories(categories.map((c) => (c.id === id ? { ...c, name } : c)));
+  const updateCategory = (id: string, field: "name" | "nameHi", value: string) => {
+    setCategories(categories.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
   };
   const deleteCategory = (id: string) => {
     setCategories(categories.filter((c) => c.id !== id));
@@ -155,7 +157,7 @@ export default function AdminPage() {
     const firstCat = categories.length > 0 ? categories[0].id : "";
     setMenuItems([
       ...menuItems,
-      { id: Date.now().toString(), categoryId: firstCat, name: "New Item", price: 0, isFavorite: false },
+      { id: Date.now().toString(), categoryId: firstCat, name: "New Item", nameHi: "", price: 0, isFavorite: false },
     ]);
   };
   const updateMenuItem = (id: string, field: keyof MenuItem, value: any) => {
@@ -355,16 +357,24 @@ export default function AdminPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {categories.map((c) => (
-              <div key={c.id} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
+              <div key={c.id} className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={c.name}
+                    onChange={(e) => updateCategory(c.id, "name", e.target.value)}
+                    className="w-full bg-transparent border-none outline-none font-semibold text-sm"
+                    placeholder="English name"
+                  />
+                  <button onClick={() => deleteCategory(c.id)} className="text-red-500 hover:text-red-700">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
                 <input
-                  value={c.name}
-                  onChange={(e) => updateCategory(c.id, e.target.value)}
-                  className="w-full bg-transparent border-none outline-none font-semibold text-sm"
-                  placeholder={t("Category Name")}
+                  value={c.nameHi || ""}
+                  onChange={(e) => updateCategory(c.id, "nameHi", e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm"
+                  placeholder="हिंदी नाम"
                 />
-                <button onClick={() => deleteCategory(c.id)} className="text-red-500 hover:text-red-700">
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
             ))}
             {categories.length === 0 && <p className="text-sm text-slate-500 col-span-full">No categories added yet.</p>}
@@ -384,13 +394,21 @@ export default function AdminPage() {
           </div>
           <div className="space-y-3">
             {menuItems.map((m) => (
-              <div key={m.id} className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
-                <input
-                  value={m.name}
-                  onChange={(e) => updateMenuItem(m.id, "name", e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm font-semibold"
-                  placeholder={t("Item Name")}
-                />
+              <div key={m.id} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <div className="flex-1 flex flex-col gap-1.5 w-full">
+                  <input
+                    value={m.name}
+                    onChange={(e) => updateMenuItem(m.id, "name", e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm font-semibold"
+                    placeholder="English name"
+                  />
+                  <input
+                    value={m.nameHi || ""}
+                    onChange={(e) => updateMenuItem(m.id, "nameHi", e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm"
+                    placeholder="हिंदी नाम"
+                  />
+                </div>
                 <select
                   value={m.categoryId}
                   onChange={(e) => updateMenuItem(m.id, "categoryId", e.target.value)}
@@ -398,7 +416,7 @@ export default function AdminPage() {
                 >
                   <option value="" disabled>Select Category</option>
                   {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{c.name}{c.nameHi ? ` / ${c.nameHi}` : ""}</option>
                   ))}
                 </select>
                 <div className="flex items-center gap-2 w-full sm:w-auto">

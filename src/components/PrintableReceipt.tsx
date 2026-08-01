@@ -3,6 +3,7 @@
 import React from "react";
 import QRCode from "react-qr-code";
 import { useTranslation } from "@/lib/i18n";
+import { localizedName } from "@/lib/localized-name";
 
 /**
  * Builds a standard UPI deep-link (UPI Intent URI).
@@ -34,6 +35,7 @@ export function buildUpiLink(opts: {
 export interface ReceiptItem {
   id?: number;
   name: string;
+  nameHi?: string;
   price: number;
   quantity: number;
   notes?: string;
@@ -184,7 +186,7 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
             {items.map((item, idx) => (
               <tr key={idx} className="font-bold text-sm">
                 <td className="py-1.5 pr-2">
-                  <div>{item.name}</div>
+                  <div>{localizedName(item, lang)}</div>
                   {item.notes && (
                     <div className="text-xs font-normal text-red-600 bg-red-50 p-0.5 rounded mt-0.5 inline-block">
                       ↳ {tr("Note")}: {item.notes}
@@ -277,7 +279,7 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
           {items.map((item, idx) => (
             <React.Fragment key={idx}>
               <tr>
-                <td className="py-1 font-semibold pr-1">{item.name}</td>
+                <td className="py-1 font-semibold pr-1">{localizedName(item, lang)}</td>
                 <td className="py-1 text-center font-bold">{item.quantity}</td>
                 <td className="py-1 text-right text-gray-700">{item.price.toFixed(2)}</td>
                 <td className="py-1 text-right font-bold">{(item.price * item.quantity).toFixed(2)}</td>

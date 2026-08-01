@@ -75,10 +75,10 @@ export async function readData(): Promise<AppData> {
   ] = await Promise.all([
     supabase.from("settings").select("data").eq("id", 1).maybeSingle(),
     supabase.from("tables").select("id, name").order("created_at", { ascending: true }),
-    supabase.from("categories").select("id, name").order("created_at", { ascending: true }),
+    supabase.from("categories").select("id, name, name_hi").order("created_at", { ascending: true }),
     supabase
       .from("menu_items")
-      .select("id, category_id, name, price, is_favorite")
+      .select("id, category_id, name, name_hi, price, is_favorite")
       .order("created_at", { ascending: true }),
     supabase.from("app_users").select("id, username, password, role, avatar").order("created_at", { ascending: true }),
     supabase.from("bills").select("*").order("bill_timestamp", { ascending: false }),
@@ -118,11 +118,16 @@ export async function readData(): Promise<AppData> {
   return {
     settings: settingsRes.data?.data ?? null,
     tables: (tablesRes.data || []).map((t) => ({ id: t.id, name: t.name })),
-    categories: (categoriesRes.data || []).map((c) => ({ id: c.id, name: c.name })),
+    categories: (categoriesRes.data || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      nameHi: c.name_hi || "",
+    })),
     menuItems: (menuRes.data || []).map((m) => ({
       id: m.id,
       categoryId: m.category_id,
       name: m.name,
+      nameHi: m.name_hi || "",
       price: Number(m.price),
       isFavorite: !!m.is_favorite,
     })),
@@ -164,6 +169,7 @@ export async function writeData(data: AppData) {
     (data.categories || []).map((c) => ({
       id: String(c.id),
       name: c.name,
+      name_hi: c.nameHi || null,
     }))
   );
 
@@ -171,6 +177,7 @@ export async function writeData(data: AppData) {
     id: String(m.id),
     category_id: m.categoryId ?? null,
     name: m.name,
+    name_hi: m.nameHi || null,
     price: m.price ?? 0,
     is_favorite: !!m.isFavorite,
   }));

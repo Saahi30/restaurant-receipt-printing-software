@@ -27,6 +27,7 @@ import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
 import Link from "next/link";
 import { useTranslation } from "@/lib/i18n";
+import { localizedName } from "@/lib/localized-name";
 import {
   canUseFingerprint,
   hasFingerprintRegistered,
@@ -46,6 +47,7 @@ interface User {
 interface BillLine {
   id: string;
   name: string;
+  nameHi?: string;
   price: number;
   quantity: number;
 }
@@ -95,12 +97,14 @@ interface Table {
 interface Category {
   id: string;
   name: string;
+  nameHi?: string;
 }
 
 interface MenuItem {
   id: string;
   categoryId: string;
   name: string;
+  nameHi?: string;
   price: number;
   isFavorite?: boolean;
 }
@@ -394,13 +398,20 @@ export default function HomePage() {
   }, [selectedTable]);
 
   // ---- Bill actions (persisted to Supabase) ----
-  const addItem = (item: { id: string; name: string; price: number }) => {
+  const addItem = (item: { id: string; name: string; nameHi?: string; price: number }) => {
     if (!selectedTable) return;
     const prev = getSession(selectedTable);
     const lines = [...prev.items];
     const idx = lines.findIndex((l) => l.id === item.id);
     if (idx > -1) lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + 1 };
-    else lines.push({ id: item.id, name: item.name, price: item.price, quantity: 1 });
+    else
+      lines.push({
+        id: item.id,
+        name: item.name,
+        nameHi: item.nameHi || "",
+        price: item.price,
+        quantity: 1,
+      });
     persistCart(selectedTable, {
       ...prev,
       items: lines,
@@ -514,7 +525,12 @@ export default function HomePage() {
       orderType: tableName.startsWith("Parcel") ? "Takeaway" : "Dine-In",
       // eslint-disable-next-line react-hooks/purity
       date: new Date().toLocaleString(),
-      items: lines.map((l) => ({ name: l.name, price: l.price, quantity: l.quantity })),
+      items: lines.map((l) => ({
+        name: l.name,
+        nameHi: l.nameHi,
+        price: l.price,
+        quantity: l.quantity,
+      })),
       subtotal: sub,
       taxAmount: tax,
       taxRate: rate,
@@ -1034,7 +1050,7 @@ export default function HomePage() {
                         disabled={!selectedTable}
                         className="whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
                       >
-                        {item.name} <span className="opacity-70 text-xs font-mono">({CURRENCY} {item.price})</span>
+                        {localizedName(item, lang)} <span className="opacity-70 text-xs font-mono">({CURRENCY} {item.price})</span>
                       </button>
                     ))}
                   </div>
@@ -1054,7 +1070,7 @@ export default function HomePage() {
                           : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
                       }`}
                     >
-                      {c.name}
+                      {localizedName(c, lang)}
                     </button>
                   ))}
                 </div>
@@ -1073,7 +1089,7 @@ export default function HomePage() {
                     className="bg-white border-2 border-slate-200 hover:border-amber-400 hover:shadow-md disabled:opacity-50 disabled:hover:border-slate-200 disabled:cursor-not-allowed rounded-2xl p-4 text-left transition-all active:scale-95 flex flex-col justify-between h-32"
                   >
                     <div>
-                      <div className="font-bold text-base text-slate-800 line-clamp-2">{item.name}</div>
+                      <div className="font-bold text-base text-slate-800 line-clamp-2">{localizedName(item, lang)}</div>
                       <div className="text-amber-600 font-bold font-mono mt-1">
                         {CURRENCY} {item.price.toFixed(2)}
                       </div>
@@ -1135,7 +1151,7 @@ export default function HomePage() {
                       {currentBill.map((line) => (
                         <div key={line.id} className="flex flex-col bg-white border border-slate-200 rounded-xl p-2.5 shadow-sm">
                           <div className="flex justify-between items-start mb-2">
-                            <div className="font-semibold text-sm text-slate-800 pr-2">{line.name}</div>
+                            <div className="font-semibold text-sm text-slate-800 pr-2">{localizedName(line, lang)}</div>
                             <div className="font-bold font-mono text-sm text-slate-800 whitespace-nowrap">
                               {CURRENCY} {(line.price * line.quantity).toFixed(2)}
                             </div>
