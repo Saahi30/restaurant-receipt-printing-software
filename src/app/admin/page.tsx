@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon } from "lucide-react";
 import Link from "next/link";
 import { PrintableReceipt } from "@/components/PrintableReceipt";
+import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
 
 interface Table {
@@ -28,7 +29,8 @@ interface User {
   id: string;
   username: string;
   password?: string;
-  role: "admin" | "waiter";
+  role: "admin" | "owner" | "waiter" | "laptop";
+  avatar?: string;
 }
 
 export default function AdminPage() {
@@ -168,7 +170,7 @@ export default function AdminPage() {
 
   // --- Users ---
   const addUser = () => {
-    setUsers([...users, { id: Date.now().toString(), username: "NewUser", password: "123", role: "waiter" }]);
+    setUsers([...users, { id: Date.now().toString(), username: "NewUser", password: "", role: "waiter", avatar: "" }]);
   };
   const updateUser = (id: string, field: keyof User, value: any) => {
     setUsers(users.map((u) => (u.id === id ? { ...u, [field]: value } : u)));
@@ -440,6 +442,13 @@ export default function AdminPage() {
           <div className="space-y-3">
             {users.map((u) => (
               <div key={u.id} className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <UserAvatar
+                  name={u.username}
+                  avatar={u.avatar}
+                  size="md"
+                  editable
+                  onChange={(dataUrl) => updateUser(u.id, "avatar", dataUrl)}
+                />
                 <input
                   value={u.username}
                   onChange={(e) => updateUser(u.id, "username", e.target.value)}
@@ -450,8 +459,9 @@ export default function AdminPage() {
                   value={u.password || ""}
                   onChange={(e) => updateUser(u.id, "password", e.target.value)}
                   className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm"
-                  placeholder={t("Password")}
+                  placeholder={u.role === "admin" || u.role === "laptop" ? t("Password") : "Password (admin/laptop only)"}
                   type="text"
+                  disabled={u.role !== "admin" && u.role !== "laptop"}
                 />
                 <select
                   value={u.role}
@@ -459,19 +469,24 @@ export default function AdminPage() {
                   className="w-full sm:w-1/4 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm font-semibold"
                 >
                   <option value="admin">Admin</option>
+                  <option value="owner">Owner</option>
                   <option value="waiter">Waiter</option>
+                  <option value="laptop">Laptop</option>
                 </select>
                 <button 
                   onClick={() => deleteUser(u.id)} 
-                  disabled={users.length === 1 && u.role === "admin"}
+                  disabled={users.filter((x) => x.role === "admin").length <= 1 && u.role === "admin"}
                   className="text-red-500 hover:text-red-700 w-full sm:w-auto text-right disabled:opacity-30 disabled:cursor-not-allowed"
-                  title={users.length === 1 && u.role === "admin" ? "Cannot delete the last admin" : "Delete user"}
+                  title={u.role === "admin" ? "Cannot delete the last admin" : "Delete user"}
                 >
                   <Trash2 className="w-4 h-4 inline" />
                 </button>
               </div>
             ))}
             {users.length === 0 && <p className="text-sm text-slate-500">No users added yet.</p>}
+            <p className="text-xs text-slate-500">
+              Owner: bills + past bills. Laptop: print station (password 8855). Only Admin opens full Admin.
+            </p>
           </div>
         </section>
           </div>

@@ -19,16 +19,28 @@ import {
   Eye,
   QrCode,
   Shield,
+  Fingerprint,
+  History,
+  PrinterIcon,
 } from "lucide-react";
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
+import { UserAvatar } from "@/components/UserAvatar";
 import Link from "next/link";
 import { useTranslation } from "@/lib/i18n";
+import {
+  canUseFingerprint,
+  hasFingerprintRegistered,
+  registerFingerprint,
+  verifyFingerprint,
+} from "@/lib/webauthn";
+import { LaptopBoard } from "@/components/LaptopBoard";
 
 interface User {
   id: string;
   username: string;
   password?: string;
-  role: "admin" | "waiter";
+  role: "admin" | "owner" | "waiter" | "laptop";
+  avatar?: string;
 }
 
 interface BillLine {
@@ -38,7 +50,17 @@ interface BillLine {
   quantity: number;
 }
 
-type BillsState = Record<string, BillLine[]>;
+type SessionStatus = "empty" | "ongoing" | "ready";
+
+type TableSession = {
+  tableId: string;
+  status: SessionStatus;
+  items: BillLine[];
+  customerName: string;
+  paymentMethod: string;
+  orderType: string;
+  receipt: any | null;
+};
 
 interface AppSettings {
   restaurantName: string;
@@ -85,7 +107,7 @@ interface MenuItem {
 
 export default function HomePage() {
   const { t, lang, toggleLang } = useTranslation();
-  const [tab, setTab] = useState<"billing" | "about">("billing");
+  const [tab, setTab] = useState<"billing" | "about" | "pastBills">("billing");
   const [loading, setLoading] = useState(true);
   
   const [settings, setSettings] = useState<AppSettings>(FALLBACK);
@@ -103,6 +125,10 @@ export default function HomePage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [fingerprintAvailable, setFingerprintAvailable] = useState(false);
+  const [fingerprintRegistered, setFingerprintRegistered] = useState(false);
+  const [fingerprintBusy, setFingerprintBusy] = useState(false);
+  const [pendingFingerprintSetup, setPendingFingerprintSetup] = useState<User | null>(null);
 
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
@@ -112,8 +138,13 @@ export default function HomePage() {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Udhaar">("Cash");
   const [amountReceived, setAmountReceived] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [bills, setBills] = useState<BillsState>({});
+  const [sessions, setSessions] = useState<Record<string, TableSession>>({});
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
+  const [pastBills, setPastBills] = useState<any[]>([]);
+  const [pastBillsLoading, setPastBillsLoading] = useState(false);
+  const [reprintData, setReprintData] = useState<any>(null);
+  const [billStatusMsg, setBillStatusMsg] = useState("");
+  const sessionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [printerConnected, setPrinterConnected] = useState(false);
   const [printerStatus, setPrinterStatus] = useState("No printer connected");
@@ -121,13 +152,18 @@ export default function HomePage() {
   const [isPrinting, setIsPrinting] = useState(false);
   const portRef = useRef<any>(null);
 
+  useEffect(() => {
+    canUseFingerprint().then(setFingerprintAvailable).catch(() => setFingerprintAvailable(false));
+  }, []);
+
   // ---- Load settings and data ----
   useEffect(() => {
     const load = async () => {
       try {
-        const [resSettings, resData] = await Promise.all([
+        const [resSettings, resData, resSessions] = await Promise.all([
           fetch("/api/settings").catch(() => null),
-          fetch("/api/admin-data").catch(() => null)
+          fetch("/api/admin-data").catch(() => null),
+          fetch("/api/table-sessions").catch(() => null),
         ]);
         
         if (resSettings && resSettings.ok) {
@@ -157,6 +193,13 @@ export default function HomePage() {
           if (json.categories?.length > 0) setSelectedCategory(json.categories[0].id);
         }
 
+        if (resSessions && resSessions.ok) {
+          const json = await resSessions.json();
+          const map: Record<string, TableSession> = {};
+          for (const s of json.sessions || []) map[s.tableId] = s;
+          setSessions(map);
+        }
+
         // Check local storage for session
         const savedSession = localStorage.getItem("pos_session");
         if (savedSession) {
@@ -174,14 +217,58 @@ export default function HomePage() {
     load();
   }, []);
 
+  const reloadSessions = async () => {
+    try {
+      const res = await fetch("/api/table-sessions");
+      if (!res.ok) return;
+      const json = await res.json();
+      const map: Record<string, TableSession> = {};
+      for (const s of json.sessions || []) map[s.tableId] = s;
+      setSessions(map);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role === "laptop") return;
+    const id = setInterval(reloadSessions, 3000);
+    return () => clearInterval(id);
+  }, [currentUser]);
+
+  const completePasswordLogin = (user: User) => {
+    const sessionUser = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      avatar: user.avatar || "",
+    };
+    setCurrentUser(sessionUser as User);
+    localStorage.setItem("pos_session", JSON.stringify(sessionUser));
+    setSelectedUserForLogin(null);
+    setLoginPassword("");
+    setLoginError("");
+
+    // Fingerprint setup only for admin on Android
+    if (user.role === "admin" && fingerprintAvailable && !hasFingerprintRegistered(user.id)) {
+      setPendingFingerprintSetup(user);
+    }
+  };
+
   const handleUserBoxClick = (user: User) => {
     setLoginError("");
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "laptop") {
       setSelectedUserForLogin(user);
       setLoginUsername(user.username);
       setLoginPassword("");
+      setFingerprintRegistered(user.role === "admin" && hasFingerprintRegistered(user.id));
     } else {
-      const sessionUser = { id: user.id, username: user.username, role: user.role };
+      const sessionUser = {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        avatar: user.avatar || "",
+      };
       setCurrentUser(sessionUser as User);
       localStorage.setItem("pos_session", JSON.stringify(sessionUser));
     }
@@ -190,14 +277,46 @@ export default function HomePage() {
   const handleAdminLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
-    const user = allUsers.find(u => u.username === loginUsername && u.password === loginPassword);
-    if (user && user.role === "admin") {
-      const sessionUser = { id: user.id, username: user.username, role: user.role };
-      setCurrentUser(sessionUser as User);
-      localStorage.setItem("pos_session", JSON.stringify(sessionUser));
-      setSelectedUserForLogin(null);
+    const user = allUsers.find(
+      (u) => u.username === loginUsername && u.password === loginPassword
+    );
+    if (user && (user.role === "admin" || user.role === "laptop")) {
+      completePasswordLogin(user);
     } else {
       setLoginError("Invalid password");
+    }
+  };
+
+  const handleFingerprintLogin = async () => {
+    if (!selectedUserForLogin || selectedUserForLogin.role !== "admin") return;
+    setLoginError("");
+    setFingerprintBusy(true);
+    try {
+      const ok = await verifyFingerprint(selectedUserForLogin.id);
+      if (!ok) {
+        setLoginError(t("Fingerprint failed. Try password."));
+        return;
+      }
+      completePasswordLogin(selectedUserForLogin);
+    } catch {
+      setLoginError(t("Fingerprint failed. Try password."));
+    } finally {
+      setFingerprintBusy(false);
+    }
+  };
+
+  const handleSetupFingerprint = async () => {
+    if (!pendingFingerprintSetup) return;
+    setFingerprintBusy(true);
+    try {
+      await registerFingerprint(pendingFingerprintSetup.id, pendingFingerprintSetup.username);
+      setFingerprintRegistered(true);
+      setPendingFingerprintSetup(null);
+    } catch {
+      setLoginError(t("Fingerprint setup failed"));
+      setPendingFingerprintSetup(null);
+    } finally {
+      setFingerprintBusy(false);
     }
   };
 
@@ -212,39 +331,115 @@ export default function HomePage() {
   const CURRENCY = settings.currency || "Rs.";
   const TAX_RATE = parseFloat(settings.taxRate || "0") || 0;
 
-  const currentBill = bills[selectedTable] || [];
+  const getSession = (tableId: string): TableSession =>
+    sessions[tableId] || {
+      tableId,
+      status: "empty",
+      items: [],
+      customerName: "",
+      paymentMethod: "Cash",
+      orderType: tableId === "PARCEL" ? "Takeaway" : "Dine-In",
+      receipt: null,
+    };
+
+  const currentSession = selectedTable ? getSession(selectedTable) : null;
+  const currentBill = currentSession?.items || [];
   const currentTableObj = tables.find(t => t.id === selectedTable);
   const currentTableName = selectedTable === "PARCEL" 
     ? (customerName ? `Parcel: ${customerName}` : "Parcel (Takeaway)") 
     : (currentTableObj ? currentTableObj.name : "Unknown Table");
 
-  // ---- Bill actions ----
+  const persistCart = async (tableId: string, next: TableSession) => {
+    setSessions((prev) => ({ ...prev, [tableId]: next }));
+    if (sessionSaveTimer.current) clearTimeout(sessionSaveTimer.current);
+    sessionSaveTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/table-sessions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tableId,
+            items: next.items,
+            customerName: next.customerName,
+            paymentMethod: next.paymentMethod,
+            orderType: next.orderType,
+            updatedBy: currentUser?.username,
+          }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json.error || "Failed to save cart");
+        }
+        const json = await res.json();
+        if (json.session) {
+          setSessions((prev) => ({ ...prev, [json.session.tableId]: json.session }));
+        }
+      } catch (e: any) {
+        console.error(e);
+        setBillStatusMsg(e.message || "Failed to save — reloading");
+        reloadSessions();
+      }
+    }, 300);
+  };
+
+  // Keep local payment/customer fields in sync when switching tables
+  useEffect(() => {
+    if (!selectedTable) return;
+    const s = getSession(selectedTable);
+    setCustomerName(s.customerName || "");
+    if (s.paymentMethod === "Cash" || s.paymentMethod === "UPI" || s.paymentMethod === "Udhaar") {
+      setPaymentMethod(s.paymentMethod);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTable]);
+
+  // ---- Bill actions (persisted to Supabase) ----
   const addItem = (item: { id: string; name: string; price: number }) => {
     if (!selectedTable) return;
-    setBills((prev) => {
-      const lines = prev[selectedTable] ? [...prev[selectedTable]] : [];
-      const idx = lines.findIndex((l) => l.id === item.id);
-      if (idx > -1) lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + 1 };
-      else lines.push({ id: item.id, name: item.name, price: item.price, quantity: 1 });
-      return { ...prev, [selectedTable]: lines };
+    const prev = getSession(selectedTable);
+    const lines = [...prev.items];
+    const idx = lines.findIndex((l) => l.id === item.id);
+    if (idx > -1) lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + 1 };
+    else lines.push({ id: item.id, name: item.name, price: item.price, quantity: 1 });
+    persistCart(selectedTable, {
+      ...prev,
+      items: lines,
+      status: "ongoing",
+      customerName,
+      paymentMethod,
+      receipt: null,
     });
   };
 
   const changeQty = (itemId: string, delta: number) => {
-    setBills((prev) => {
-      const lines = (prev[selectedTable] || [])
-        .map((l) => (l.id === itemId ? { ...l, quantity: l.quantity + delta } : l))
-        .filter((l) => l.quantity > 0);
-      return { ...prev, [selectedTable]: lines };
+    if (!selectedTable) return;
+    const prev = getSession(selectedTable);
+    const lines = prev.items
+      .map((l) => (l.id === itemId ? { ...l, quantity: l.quantity + delta } : l))
+      .filter((l) => l.quantity > 0);
+    persistCart(selectedTable, {
+      ...prev,
+      items: lines,
+      status: lines.length ? "ongoing" : "empty",
+      customerName,
+      paymentMethod,
+      receipt: null,
     });
   };
 
   const clearBill = () => {
-    setBills((prev) => ({ ...prev, [selectedTable]: [] }));
+    if (!selectedTable) return;
+    const prev = getSession(selectedTable);
+    persistCart(selectedTable, {
+      ...prev,
+      items: [],
+      status: "empty",
+      customerName: selectedTable === "PARCEL" ? "" : prev.customerName,
+      paymentMethod,
+      receipt: null,
+    });
     setAmountReceived("");
-    if (selectedTable === "PARCEL") {
-      setCustomerName("");
-    }
+    if (selectedTable === "PARCEL") setCustomerName("");
   };
 
   const subtotal = currentBill.reduce((a, l) => a + l.price * l.quantity, 0);
@@ -348,69 +543,53 @@ export default function HomePage() {
   };
 
   const makeBill = async () => {
-    if (currentBill.length === 0) return;
+    if (currentBill.length === 0 || !selectedTable) return;
     setPrinterError("");
+    setBillStatusMsg("");
     setIsPrinting(true);
     try {
       const data = buildReceiptData(settings, currentBill, currentTableName);
+      const payload = buildBillLogPayload(data);
 
-      // Save bill to history (includes tender/change for biller reference only)
-      try {
-        await fetch("/api/bills", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildBillLogPayload(data)),
-        });
-      } catch (err) {
-        console.error("Failed to save bill", err);
-      }
-
-      if (printerConnected && portRef.current) {
-        try {
-          setPrinterStatus("Printing...");
-          const res = await fetch("/api/escpos", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ type: "receipt", data }),
-          });
-          const json = await res.json();
-          if (json.success && json.bytes) {
-            const writer = portRef.current.writable.getWriter();
-            await writer.write(new Uint8Array(json.bytes));
-            writer.releaseLock();
-            setPrinterStatus("Printed! Printer connected & ready");
-          }
-        } catch (err: any) {
-          setPrinterError("Printer error: " + (err.message || "Could not print."));
+      const res = await fetch("/api/table-sessions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tableId: selectedTable,
+          items: currentBill,
+          customerName,
+          paymentMethod,
+          orderType: data.orderType,
+          markReady: true,
+          receipt: payload,
+          updatedBy: currentUser?.username,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (json.code === "STATION_OFFLINE" || /connect laptop/i.test(json.error || "")) {
+          setBillStatusMsg("Connect laptop");
+          setPrinterError("Connect laptop — open the Laptop account on the PC and connect the printer.");
+        } else {
+          setPrinterError(json.error || "Could not send bill to laptop");
         }
-      } else {
-        setPrintData(data);
-        setTimeout(() => window.print(), 150);
+        return;
       }
-      clearBill();
+      if (json.session) {
+        setSessions((prev) => ({ ...prev, [json.session.tableId]: json.session }));
+      }
+      setBillStatusMsg("Sent to laptop");
+      setAmountReceived("");
+      setTimeout(() => setBillStatusMsg(""), 2500);
+    } catch (err: any) {
+      setPrinterError(err.message || "Could not send bill to laptop");
     } finally {
       setIsPrinting(false);
     }
   };
 
   const browserPrint = async () => {
-    if (currentBill.length === 0) return;
-    const data = buildReceiptData(settings, currentBill, currentTableName);
-    setPrintData(data);
-    
-    // Save bill to history (includes tender/change for biller reference only)
-    try {
-      await fetch("/api/bills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBillLogPayload(data)),
-      });
-    } catch (err) {
-      console.error("Failed to save bill", err);
-    }
-    
-    setTimeout(() => window.print(), 150);
-    clearBill();
+    await makeBill();
   };
 
   // ---- Settings save ----
@@ -475,12 +654,16 @@ export default function HomePage() {
                   key={u.id}
                   onClick={() => handleUserBoxClick(u)}
                   className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 hover:scale-105 ${
-                    u.role === "admin" 
-                      ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100" 
+                    u.role === "admin"
+                      ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      : u.role === "owner"
+                      ? "border-emerald-400 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                      : u.role === "laptop"
+                      ? "border-blue-400 bg-blue-50 text-blue-800 hover:bg-blue-100"
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                   }`}
                 >
-                  {u.role === "admin" ? <Shield className="w-8 h-8 mb-1" /> : <Store className="w-8 h-8 mb-1 opacity-70" />}
+                  <UserAvatar name={u.username} avatar={u.avatar} size="lg" />
                   <span className="font-bold text-lg">{u.username}</span>
                   <span className="text-xs uppercase tracking-wider font-semibold opacity-60">{u.role}</span>
                 </button>
@@ -489,18 +672,39 @@ export default function HomePage() {
           ) : (
             <div className="max-w-sm mx-auto">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-800">Admin Login: {selectedUserForLogin.username}</h2>
+                <h2 className="text-lg font-bold text-slate-800">
+                  {selectedUserForLogin.role === "laptop" ? "Laptop Login" : "Admin Login"}: {selectedUserForLogin.username}
+                </h2>
                 <button 
                   onClick={() => setSelectedUserForLogin(null)}
                   className="text-sm text-slate-500 hover:text-slate-800 underline"
                 >{t("Back")}</button>
               </div>
+
+              {loginError && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-semibold flex items-center gap-2 mb-4">
+                  <AlertCircle className="w-4 h-4" /> {loginError}
+                </div>
+              )}
+
+              {fingerprintAvailable && fingerprintRegistered && (
+                <div className="mb-5 space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleFingerprintLogin}
+                    disabled={fingerprintBusy}
+                    className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Fingerprint className="w-5 h-5" />
+                    {fingerprintBusy ? "..." : t("Use Fingerprint")}
+                  </button>
+                  <p className="text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    {t("or use password")}
+                  </p>
+                </div>
+              )}
+
               <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
-                {loginError && (
-                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" /> {loginError}
-                  </div>
-                )}
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">{t("Password")}</label>
                   <input
@@ -510,7 +714,7 @@ export default function HomePage() {
                     className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all"
                     placeholder={t("Enter password")}
                     required
-                    autoFocus
+                    autoFocus={!fingerprintRegistered}
                   />
                 </div>
                 <button
@@ -525,8 +729,103 @@ export default function HomePage() {
     );
   }
 
+  // Fingerprint setup prompt (Android only, after password login)
+  if (pendingFingerprintSetup) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm text-center">
+          <div className="mx-auto mb-4 bg-slate-900 w-14 h-14 rounded-2xl flex items-center justify-center">
+            <Fingerprint className="w-7 h-7 text-white" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">{t("Set up Fingerprint")}</h2>
+          <p className="text-slate-500 mb-6">{t("Use fingerprint next time on this phone")}</p>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleSetupFingerprint}
+              disabled={fingerprintBusy}
+              className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <Fingerprint className="w-5 h-5" />
+              {fingerprintBusy ? "..." : t("Set up Fingerprint")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingFingerprintSetup(null)}
+              className="w-full text-slate-500 hover:text-slate-800 font-semibold py-2"
+            >
+              {t("Skip for now")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentUser.role === "laptop") {
+    return (
+      <LaptopBoard
+        settings={settings}
+        tables={tables}
+        categories={categories}
+        menuItems={menuItems}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   const isAdmin = currentUser.role === "admin";
+  const canViewPastBills = currentUser.role === "admin" || currentUser.role === "owner";
   const currentBillData = buildReceiptData(settings, currentBill, currentTableName);
+
+  const loadPastBills = async () => {
+    setPastBillsLoading(true);
+    try {
+      const res = await fetch("/api/bills");
+      if (res.ok) {
+        const json = await res.json();
+        setPastBills(json.bills || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPastBillsLoading(false);
+    }
+  };
+
+  const openPastBills = () => {
+    setTab("pastBills");
+    loadPastBills();
+  };
+
+  const saveCurrentUserAvatar = async (dataUrl: string) => {
+    if (!currentUser) return;
+    const updatedUsers = allUsers.map((u) =>
+      u.id === currentUser.id ? { ...u, avatar: dataUrl } : u
+    );
+    setAllUsers(updatedUsers);
+    const nextUser = { ...currentUser, avatar: dataUrl };
+    setCurrentUser(nextUser);
+    localStorage.setItem("pos_session", JSON.stringify(nextUser));
+    try {
+      await fetch("/api/admin-data", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users: updatedUsers }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleReprintPastBill = (bill: any) => {
+    setReprintData(bill);
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setReprintData(null), 500);
+    }, 100);
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
@@ -549,8 +848,15 @@ export default function HomePage() {
               <Link href="/admin" className="hidden sm:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">
                 <Shield className="w-4 h-4" />{t("Admin Access")}</Link>
             )}
-            <div className="text-sm font-medium text-slate-400 border-l border-slate-700 pl-3">
-              {currentUser.username} ({currentUser.role})
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-400 border-l border-slate-700 pl-3">
+              <UserAvatar
+                name={currentUser.username}
+                avatar={currentUser.avatar}
+                size="sm"
+                editable
+                onChange={saveCurrentUserAvatar}
+              />
+              <span>{currentUser.username} ({currentUser.role})</span>
             </div>
             <button onClick={handleLogout} className="text-slate-400 hover:text-white text-xs underline">
               {t("Logout")}
@@ -571,6 +877,15 @@ export default function HomePage() {
               }`}
             >
               <Receipt className="w-4 h-4" />{t("Billing")}</button>
+            {canViewPastBills && (
+              <button
+                onClick={openPastBills}
+                className={`px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5 ${
+                  tab === "pastBills" ? "bg-amber-500 text-white" : "text-slate-300 hover:text-white"
+                }`}
+              >
+                <History className="w-4 h-4" />{t("Past Bills")}</button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => setTab("about")}
@@ -584,28 +899,12 @@ export default function HomePage() {
 
           <div
             className={`hidden md:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold ${
-              printerConnected
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                : "bg-slate-700 text-slate-300 border border-slate-600"
+              "bg-slate-700 text-slate-300 border border-slate-600"
             }`}
           >
-            {printerConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-            <span>{printerStatus}</span>
+            <WifiOff className="w-3.5 h-3.5" />
+            <span>Print via Laptop</span>
           </div>
-
-          {printerConnected ? (
-            <button
-              onClick={disconnectPrinter}
-              className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
-            >
-              <Usb className="w-4 h-4" />{t("Disconnect")}</button>
-          ) : (
-            <button
-              onClick={connectPrinter}
-              className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
-            >
-              <Usb className="w-4 h-4" />{t("Detect Printer")}</button>
-          )}
         </div>
       </header>
 
@@ -615,61 +914,74 @@ export default function HomePage() {
           <span>{printerError}</span>
         </div>
       )}
+      {billStatusMsg && !printerError && (
+        <div className="bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-sm px-4 py-2 flex items-center gap-2 print:hidden font-semibold">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{billStatusMsg}</span>
+        </div>
+      )}
 
       {/* ================= BILLING TAB ================= */}
       {tab === "billing" && (
         <>
           <div className="bg-white border-b border-slate-200 px-4 py-3 print:hidden">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between gap-2 flex-wrap">
               <span>{t("Select Table")}</span>
-              {tables.length === 0 && <span className="text-amber-500">No tables configured! Go to Admin.</span>}
+              <span className="normal-case font-semibold text-slate-400">
+                <span className="text-red-500">●</span> empty{" "}
+                <span className="text-amber-500">●</span> ongoing{" "}
+                <span className="text-emerald-500">●</span> ready
+              </span>
             </p>
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSelectedTable("PARCEL")}
-                className={`relative px-5 py-3 rounded-xl font-bold text-sm border-2 transition-all ${
-                  selectedTable === "PARCEL"
-                    ? "bg-emerald-500 border-emerald-500 text-white shadow-lg scale-105"
-                    : (bills["PARCEL"] || []).length > 0
-                    ? "bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100"
-                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                }`}
-              >
-                PARCEL (Takeaway)
-                {(bills["PARCEL"] || []).length > 0 && (
-                  <span
-                    className={`absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                      selectedTable === "PARCEL" ? "bg-white text-emerald-600" : "bg-emerald-500 text-white"
+              {(() => {
+                const parcel = getSession("PARCEL");
+                const qty = parcel.items.reduce((a, l) => a + l.quantity, 0);
+                const color =
+                  parcel.status === "ready"
+                    ? "bg-emerald-500 border-emerald-600 text-white"
+                    : parcel.status === "ongoing"
+                    ? "bg-amber-400 border-amber-500 text-slate-900"
+                    : "bg-red-50 border-red-300 text-red-800";
+                return (
+                  <button
+                    onClick={() => setSelectedTable("PARCEL")}
+                    className={`relative px-5 py-3 rounded-xl font-bold text-sm border-2 transition-all ${color} ${
+                      selectedTable === "PARCEL" ? "shadow-lg scale-105 ring-2 ring-offset-1 ring-slate-400" : ""
                     }`}
                   >
-                    {(bills["PARCEL"] || []).reduce((a, l) => a + l.quantity, 0)}
-                  </span>
-                )}
-              </button>
+                    PARCEL (Takeaway)
+                    {qty > 0 && (
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center bg-slate-900 text-white">
+                        {qty}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
 
               {tables.map((tbl) => {
-                const hasItems = (bills[tbl.id] || []).length > 0;
+                const s = getSession(tbl.id);
                 const isSel = selectedTable === tbl.id;
+                const qty = s.items.reduce((a, l) => a + l.quantity, 0);
+                const color =
+                  s.status === "ready"
+                    ? "bg-emerald-500 border-emerald-600 text-white"
+                    : s.status === "ongoing"
+                    ? "bg-amber-400 border-amber-500 text-slate-900"
+                    : "bg-red-50 border-red-300 text-red-800";
                 return (
                   <button
                     key={tbl.id}
                     onClick={() => setSelectedTable(tbl.id)}
-                    className={`relative px-5 py-3 rounded-xl font-bold text-sm border-2 transition-all ${
-                      isSel
-                        ? "bg-amber-500 border-amber-500 text-white shadow-lg scale-105"
-                        : hasItems
-                        ? "bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100"
-                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    className={`relative px-5 py-3 rounded-xl font-bold text-sm border-2 transition-all ${color} ${
+                      isSel ? "shadow-lg scale-105 ring-2 ring-offset-1 ring-slate-400" : ""
                     }`}
                   >
                     {tbl.name}
-                    {hasItems && (
-                      <span
-                        className={`absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                          isSel ? "bg-white text-amber-600" : "bg-amber-500 text-white"
-                        }`}
-                      >
-                        {(bills[tbl.id] || []).reduce((a, l) => a + l.quantity, 0)}
+                    {qty > 0 && (
+                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center bg-slate-900 text-white">
+                        {qty}
                       </span>
                     )}
                   </button>
@@ -683,7 +995,13 @@ export default function HomePage() {
                   type="text"
                   placeholder={paymentMethod === "Udhaar" ? "Customer Name (Required for Udhaar)" : "Customer Name (Optional)"}
                   value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setCustomerName(name);
+                    if (!selectedTable) return;
+                    const prev = getSession(selectedTable);
+                    persistCart(selectedTable, { ...prev, customerName: name, paymentMethod });
+                  }}
                   className={`w-full border-2 focus:ring-2 rounded-lg px-4 py-2 text-sm outline-none transition-all ${
                     paymentMethod === "Udhaar" && !customerName.trim()
                       ? "border-red-300 focus:border-red-500 focus:ring-red-200"
@@ -871,22 +1189,26 @@ export default function HomePage() {
                   <div className="pt-3 pb-1 border-t border-slate-100 mt-2">
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Payment Method</span>
                     <div className="grid grid-cols-3 gap-2">
-                      {["Cash", "UPI", "Udhaar"].map((pm) => (
+                      {["Cash", "UPI", "Udhaar"].map((pmLabel) => (
                         <button
-                          key={pm}
+                          key={pmLabel}
                           onClick={() => {
-                            setPaymentMethod(pm as any);
+                            const pm = pmLabel as "Cash" | "UPI" | "Udhaar";
+                            setPaymentMethod(pm);
                             if (pm !== "Cash") setAmountReceived("");
+                            if (!selectedTable) return;
+                            const prev = getSession(selectedTable);
+                            persistCart(selectedTable, { ...prev, paymentMethod: pm, customerName });
                           }}
                           className={`py-1.5 rounded-lg text-sm font-bold border transition-colors ${
-                            paymentMethod === pm
-                              ? pm === "Udhaar"
+                            paymentMethod === pmLabel
+                              ? pmLabel === "Udhaar"
                                 ? "bg-red-50 border-red-500 text-red-700"
                                 : "bg-slate-800 border-slate-800 text-white"
                               : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                           }`}
                         >
-                          {pm}
+                          {pmLabel}
                         </button>
                       ))}
                     </div>
@@ -953,19 +1275,17 @@ export default function HomePage() {
 
                   <button
                     onClick={makeBill}
-                    disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim())}
+                    disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim()) || currentSession?.status === "ready"}
                     className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
                   >
                     {isPrinting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                    {isPrinting ? "Printing..." : (paymentMethod === "Udhaar" && !customerName.trim() ? "Enter Name for Udhaar" : "Make Bill & Print Instant")}
-                  </button>
-
-                  <button
-                    onClick={browserPrint}
-                    disabled={currentBill.length === 0 || (paymentMethod === "Udhaar" && !customerName.trim())}
-                    className="w-full bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 font-bold py-3 border-2 border-slate-200 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Printer className="w-4 h-4" /> Print (Browser Dialog)
+                    {isPrinting
+                      ? "Sending..."
+                      : paymentMethod === "Udhaar" && !customerName.trim()
+                      ? "Enter Name for Udhaar"
+                      : currentSession?.status === "ready"
+                      ? "Waiting on laptop..."
+                      : "Generate Bill"}
                   </button>
                 </div>
               </div>
@@ -1014,19 +1334,94 @@ export default function HomePage() {
                     onClick={() => { setShowPreviewModal(false); makeBill(); }}
                     className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
                   >
-                    <Printer className="w-5 h-5" /> Print Instantly
-                  </button>
-                  <button
-                    onClick={() => { setShowPreviewModal(false); browserPrint(); }}
-                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Printer className="w-4 h-4" /> Print (Browser Dialog)
+                    <Printer className="w-5 h-5" /> Generate Bill
                   </button>
                 </div>
               </div>
             </div>
           )}
         </>
+      )}
+
+      {/* ================= PAST BILLS (owner + admin) ================= */}
+      {tab === "pastBills" && canViewPastBills && (
+        <main className="flex-1 p-4 max-w-5xl w-full mx-auto print:hidden">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                  <History className="w-5 h-5 text-amber-500" /> {t("Past Bills")}
+                </h2>
+                <p className="text-sm text-slate-500">View and reprint previous bills</p>
+              </div>
+              <button
+                type="button"
+                onClick={loadPastBills}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-4 h-4 ${pastBillsLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="text-left p-3 font-semibold">Bill #</th>
+                    <th className="text-left p-3 font-semibold">Table / Customer</th>
+                    <th className="text-left p-3 font-semibold">Date</th>
+                    <th className="text-left p-3 font-semibold">Payment</th>
+                    <th className="text-right p-3 font-semibold">Total</th>
+                    <th className="text-right p-3 font-semibold">{t("Actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pastBillsLoading && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-500">Loading...</td>
+                    </tr>
+                  )}
+                  {!pastBillsLoading && pastBills.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-500">No bills found.</td>
+                    </tr>
+                  )}
+                  {!pastBillsLoading &&
+                    pastBills.map((b) => (
+                      <tr key={b.id || b.orderNumber} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="p-3 font-mono font-semibold text-slate-800">{b.orderNumber}</td>
+                        <td className="p-3 text-slate-700">
+                          <div>{b.tableNumber || "—"}</div>
+                          {b.customerName && (
+                            <div className="text-xs text-slate-500">{b.customerName}</div>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-600">{b.date || (b.timestamp ? new Date(b.timestamp).toLocaleString() : "—")}</td>
+                        <td className="p-3">
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                            {b.paymentMethod || "—"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-slate-900">
+                          {settings.currency}{Number(b.totalAmount || 0).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleReprintPastBill(b)}
+                            className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg"
+                          >
+                            <PrinterIcon className="w-3.5 h-3.5" /> Reprint
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
       )}
 
       {/* ================= ABOUT US / SETTINGS TAB ================= */}
@@ -1179,7 +1574,11 @@ export default function HomePage() {
 
       {/* Hidden print area */}
       <div id="thermal-print-section" className="hidden print:block">
-        {printData && <PrintableReceipt {...printData} />}
+        {reprintData ? (
+          <PrintableReceipt {...reprintData} />
+        ) : (
+          printData && <PrintableReceipt {...printData} />
+        )}
       </div>
     </div>
   );

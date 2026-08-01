@@ -19,7 +19,23 @@ export const translations: Record<string, Record<Language, string>> = {
   "Password": { en: "Password", hi: "Password (पासवर्ड)" },
   "Enter password": { en: "Enter password", hi: "Password darj karein" },
   "Login": { en: "Login", hi: "Login Karein" },
+  "Past Bills": { en: "Past Bills", hi: "Purane Bills" },
   "Back": { en: "Back", hi: "Wapas (Back)" },
+  "Use Fingerprint": { en: "Use Fingerprint", hi: "Fingerprint use karein" },
+  "or use password": { en: "or use password", hi: "ya password use karein" },
+  "Fingerprint failed. Try password.": { en: "Fingerprint failed. Try password.", hi: "Fingerprint fail hua. Password try karein." },
+  "Set up Fingerprint": { en: "Set up Fingerprint", hi: "Fingerprint set karein" },
+  "Skip for now": { en: "Skip for now", hi: "Abhi skip karein" },
+  "Use fingerprint next time on this phone": {
+    en: "Use fingerprint next time on this phone?",
+    hi: "Is phone par agli baar fingerprint use karein?",
+  },
+  "Fingerprint enabled": { en: "Fingerprint enabled", hi: "Fingerprint enable ho gaya" },
+  "Fingerprint setup failed": { en: "Fingerprint setup failed", hi: "Fingerprint setup fail hua" },
+  "Fingerprint needs HTTPS": {
+    en: "Fingerprint needs HTTPS on this device",
+    hi: "Fingerprint ke liye HTTPS chahiye",
+  },
 
   // Billing Tab - Top Area
   "Select Table": { en: "Select Table", hi: "Table Chunein (Select Table)" },
