@@ -145,6 +145,9 @@ export default function HomePage() {
   const [menuQtyDraft, setMenuQtyDraft] = useState<Record<string, string>>({});
   const [cartQtyDraft, setCartQtyDraft] = useState<Record<string, string>>({});
   const [pricePickerKey, setPricePickerKey] = useState<string | null>(null);
+  const [miscName, setMiscName] = useState("");
+  const [miscPrice, setMiscPrice] = useState("");
+  const [miscQty, setMiscQty] = useState("1");
   const [sessions, setSessions] = useState<Record<string, TableSession>>({});
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
   const [pastBills, setPastBills] = useState<any[]>([]);
@@ -440,6 +443,26 @@ export default function HomePage() {
       paymentMethod,
       receipt: null,
     });
+  };
+
+  const addMiscItem = () => {
+    if (!selectedTable) return;
+    const name = miscName.trim();
+    const price = Number(miscPrice);
+    if (!name || !Number.isFinite(price) || price < 0) return;
+    const qty = parseQty(miscQty, 1);
+    addItem(
+      {
+        id: `misc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        nameHi: name,
+        price,
+      },
+      qty
+    );
+    setMiscName("");
+    setMiscPrice("");
+    setMiscQty("1");
   };
 
   const changeQty = (itemId: string, delta: number) => {
@@ -1138,26 +1161,25 @@ export default function HomePage() {
             )}
           </div>
 
-          <main className="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 p-3 w-full mx-auto print:hidden pb-20 lg:pb-3">
-            <section className="lg:flex-[1.35] min-h-0 flex flex-col gap-2 overflow-y-auto">
+          <main className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 p-2 w-full mx-auto print:hidden pb-20 lg:pb-2">
+            <section className="lg:flex-1 min-h-0 flex flex-col gap-1.5 overflow-y-auto">
               {/* Fast Items */}
               {fastItems.length > 0 && (
                 <div className="shrink-0">
-                  <h2 className="text-[11px] font-bold text-amber-600 flex items-center gap-1 uppercase tracking-wide mb-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                  <h2 className="text-[10px] font-bold text-amber-600 flex items-center gap-1 uppercase tracking-wide mb-1">
                     {t("Fast Items (Quick Add)")}
                   </h2>
-                  <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+                  <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-hide">
                     {fastItems.map((item) => (
                       <button
                         key={`fast-${item.id}`}
                         onClick={() => addItem(item)}
                         disabled={!selectedTable}
-                        className="whitespace-nowrap px-3 py-1.5 rounded-lg font-bold text-sm border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        className="whitespace-nowrap px-2 py-1 rounded-md font-semibold text-xs border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {localizedName(item, lang)}{" "}
-                        <span className="opacity-80 text-xs font-mono font-extrabold">
-                          ({CURRENCY} {item.price})
+                        <span className="font-mono font-bold">
+                          {CURRENCY}{item.price}
                         </span>
                       </button>
                     ))}
@@ -1167,7 +1189,7 @@ export default function HomePage() {
 
               {/* Category selector */}
               {categories.length > 0 && (
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide shrink-0">
+                <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-hide shrink-0">
                   {categories.map((c) => (
                     <button
                       key={c.id}
@@ -1175,7 +1197,7 @@ export default function HomePage() {
                         setSelectedCategory(c.id);
                         setPricePickerKey(null);
                       }}
-                      className={`whitespace-nowrap px-3 py-1.5 rounded-lg font-bold text-sm border transition-colors ${
+                      className={`whitespace-nowrap px-2 py-1 rounded-md font-semibold text-xs border transition-colors ${
                         selectedCategory === c.id
                           ? "bg-slate-800 border-slate-800 text-white"
                           : "bg-white border-slate-200 text-slate-700 hover:border-slate-400"
@@ -1187,11 +1209,11 @@ export default function HomePage() {
                 </div>
               )}
 
-              <h2 className="text-sm font-bold text-slate-600 tracking-wide shrink-0">
+              <h2 className="text-xs font-bold text-slate-500 tracking-wide shrink-0">
                 {selectedTable ? `${t("Add Items to")} ${currentTableName}` : t("Select a table first")}
               </h2>
               
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-1.5 content-start">
                 {menuGroups.map((variants) => {
                   const primary = variants[0];
                   const groupKey = primary.name.trim().toLowerCase();
@@ -1205,10 +1227,10 @@ export default function HomePage() {
                     return (
                       <div
                         key={groupKey}
-                        className={`bg-white border rounded-xl px-2.5 py-2 text-left transition-all flex flex-col gap-1.5 ${
+                        className={`bg-white border rounded-lg p-1.5 text-left transition-all flex flex-col ${
                           pickerOpen
-                            ? "border-amber-400 shadow-md"
-                            : "border-slate-200 hover:border-amber-400"
+                            ? "border-amber-400 shadow-sm col-span-2 aspect-auto min-h-[100px]"
+                            : "border-slate-200 hover:border-amber-400 aspect-square"
                         } ${!selectedTable ? "opacity-50" : ""}`}
                       >
                         <button
@@ -1217,37 +1239,33 @@ export default function HomePage() {
                           onClick={() =>
                             setPricePickerKey((k) => (k === groupKey ? null : groupKey))
                           }
-                          className="flex items-center justify-between gap-2 w-full text-left disabled:cursor-not-allowed"
+                          className="flex-1 min-h-0 flex flex-col justify-between w-full text-left disabled:cursor-not-allowed"
                         >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-sm leading-snug text-slate-900 truncate">
-                              {localizedName(primary, lang)}
+                          <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-3">
+                            {localizedName(primary, lang)}
+                          </div>
+                          <div className="mt-auto">
+                            <div className="text-amber-600 font-bold font-mono text-xs">
+                              {CURRENCY}{minPrice.toFixed(0)}+
                             </div>
-                            <div className="text-amber-600 font-black font-mono text-sm">
-                              {t("From")} {CURRENCY} {minPrice.toFixed(0)}
+                            <div className="text-[9px] font-semibold text-slate-400">
+                              {t("Select price")}
                             </div>
                           </div>
-                          <span className="shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center text-base font-black">
-                            {pickerOpen ? "−" : "+"}
-                          </span>
                         </button>
 
                         {pickerOpen && (
-                          <div className="pt-1.5 border-t border-slate-100 space-y-1.5">
-                            <div className="flex items-center gap-1.5">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                {t("Qty")}
-                              </label>
+                          <div className="pt-1 mt-1 border-t border-slate-100 space-y-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">{t("Qty")}</span>
                               <input
-                                type="number"
+                                type="text"
                                 inputMode="numeric"
-                                min={1}
-                                max={999}
                                 value={qtyValue}
                                 onChange={(e) => setMenuQty(qtyKey, e.target.value)}
                                 onFocus={(e) => e.target.select()}
                                 disabled={!selectedTable}
-                                className="w-12 h-7 rounded-lg border border-slate-200 text-center font-bold text-sm text-slate-900 focus:border-amber-400 focus:outline-none disabled:cursor-not-allowed"
+                                className="w-9 h-6 rounded border border-slate-200 text-center font-bold text-xs text-slate-900 focus:border-amber-400 focus:outline-none disabled:cursor-not-allowed"
                               />
                             </div>
                             <div className="flex flex-wrap gap-1">
@@ -1260,9 +1278,9 @@ export default function HomePage() {
                                     addItem(v, getMenuQty(qtyKey));
                                     setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
                                   }}
-                                  className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 font-black font-mono text-xs hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed"
+                                  className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 font-bold font-mono text-[11px] hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed"
                                 >
-                                  {CURRENCY} {v.price.toFixed(0)}
+                                  {CURRENCY}{v.price.toFixed(0)}
                                 </button>
                               ))}
                             </div>
@@ -1275,46 +1293,44 @@ export default function HomePage() {
                   return (
                     <div
                       key={primary.id}
-                      className="bg-white border border-slate-200 hover:border-amber-400 rounded-xl px-2.5 py-2 text-left transition-all flex items-center gap-2"
+                      className="bg-white border border-slate-200 hover:border-amber-400 rounded-lg p-1.5 text-left transition-all flex flex-col aspect-square"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-sm leading-snug text-slate-900 truncate">
-                          {localizedName(primary, lang)}
-                        </div>
-                        <div className="text-amber-600 font-black font-mono text-sm">
-                          {CURRENCY} {primary.price.toFixed(0)}
-                        </div>
+                      <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-3 flex-1 min-h-0">
+                        {localizedName(primary, lang)}
                       </div>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={999}
-                        value={qtyValue}
-                        onChange={(e) => setMenuQty(qtyKey, e.target.value)}
-                        onFocus={(e) => e.target.select()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && selectedTable) {
+                      <div className="text-amber-600 font-bold font-mono text-xs mt-0.5">
+                        {CURRENCY}{primary.price.toFixed(0)}
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={qtyValue}
+                          onChange={(e) => setMenuQty(qtyKey, e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && selectedTable) {
+                              addItem(primary, getMenuQty(qtyKey));
+                              setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
+                            }
+                          }}
+                          disabled={!selectedTable}
+                          title={t("Qty")}
+                          className="w-8 h-6 flex-1 min-w-0 rounded border border-slate-200 text-center font-bold text-xs text-slate-900 focus:border-amber-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
                             addItem(primary, getMenuQty(qtyKey));
                             setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
-                          }
-                        }}
-                        disabled={!selectedTable}
-                        title={t("Qty")}
-                        className="w-10 h-8 shrink-0 rounded-lg border border-slate-200 text-center font-bold text-sm text-slate-900 focus:border-amber-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          addItem(primary, getMenuQty(qtyKey));
-                          setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
-                        }}
-                        disabled={!selectedTable}
-                        className="shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Add"
-                      >
-                        <Plus className="w-4 h-4" strokeWidth={3} />
-                      </button>
+                          }}
+                          disabled={!selectedTable}
+                          className="shrink-0 w-6 h-6 rounded bg-amber-500 text-white flex items-center justify-center active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Add"
+                        >
+                          <Plus className="w-3.5 h-3.5" strokeWidth={3} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1332,112 +1348,174 @@ export default function HomePage() {
               </div>
             </section>
 
-            <section className={`lg:w-[380px] xl:w-[400px] shrink-0 min-h-0 ${isMobileCartOpen ? 'fixed inset-0 z-50 bg-black/60 flex flex-col justify-end p-0 sm:p-4 pb-0' : 'hidden lg:flex lg:flex-col'}`}>
-              <div className="bg-white rounded-t-2xl lg:rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[90vh] sm:h-[85vh] lg:h-full min-h-0 mt-auto w-full max-w-lg mx-auto lg:max-w-none">
-                <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
-                  <h2 className="font-extrabold text-base text-slate-800 flex items-center gap-1.5">
-                    <Receipt className="w-4 h-4 text-amber-500" />
+            <section className={`lg:w-[340px] xl:w-[360px] shrink-0 min-h-0 ${isMobileCartOpen ? 'fixed inset-0 z-50 bg-black/60 flex flex-col justify-end p-0 sm:p-3 pb-0' : 'hidden lg:flex lg:flex-col'}`}>
+              <div className="bg-white rounded-t-xl lg:rounded-lg border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[90vh] sm:h-[85vh] lg:h-full min-h-0 mt-auto w-full max-w-sm mx-auto lg:max-w-none">
+                <div className="px-2.5 py-1.5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                  <h2 className="font-bold text-sm text-slate-800 flex items-center gap-1">
+                    <Receipt className="w-3.5 h-3.5 text-amber-500" />
                     Bill — {currentTableName}
                     {currentBill.length > 0 && (
-                      <span className="ml-1 text-xs font-bold text-slate-400">
+                      <span className="text-[10px] font-bold text-slate-400">
                         ({currentBill.reduce((a, l) => a + l.quantity, 0)})
                       </span>
                     )}
                   </h2>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {currentBill.length > 0 && (
                       <button
                         onClick={clearBill}
-                        className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-bold bg-red-50 px-2 py-1 rounded-md"
+                        className="text-[10px] text-red-500 hover:text-red-700 flex items-center gap-0.5 font-bold bg-red-50 px-1.5 py-0.5 rounded"
                       >
-                        <Trash2 className="w-3.5 h-3.5" /> Clear
+                        <Trash2 className="w-3 h-3" /> Clear
                       </button>
                     )}
                     {isMobileCartOpen && (
-                      <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-full w-8 h-8 flex items-center justify-center shadow-sm text-base font-bold">
+                      <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-500 bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                         ✕
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-0 p-2 overflow-y-auto bg-slate-50">
+                <div className="px-2 py-1.5 border-b border-slate-100 bg-amber-50/60 shrink-0 space-y-1">
+                  <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wide">
+                    {t("Misc item")}
+                  </div>
+                  <input
+                    type="text"
+                    value={miscName}
+                    onChange={(e) => setMiscName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addMiscItem();
+                    }}
+                    placeholder={t("Item name")}
+                    disabled={!selectedTable}
+                    className="w-full h-7 px-2 rounded border border-amber-200 bg-white text-xs text-slate-800 focus:border-amber-400 focus:outline-none disabled:opacity-50"
+                  />
+                  <div className="flex gap-1">
+                    <div className="relative flex-1">
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-mono pointer-events-none">
+                        {CURRENCY}
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={miscPrice}
+                        onChange={(e) => setMiscPrice(e.target.value.replace(/[^\d.]/g, ""))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") addMiscItem();
+                        }}
+                        placeholder={t("Price")}
+                        disabled={!selectedTable}
+                        className="w-full h-7 pl-7 pr-1 rounded border border-amber-200 bg-white text-xs font-mono text-slate-800 focus:border-amber-400 focus:outline-none disabled:opacity-50"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={miscQty}
+                      onChange={(e) => setMiscQty(e.target.value.replace(/[^\d]/g, "").slice(0, 3))}
+                      onFocus={(e) => e.target.select()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") addMiscItem();
+                      }}
+                      placeholder={t("Qty")}
+                      disabled={!selectedTable}
+                      title={t("Qty")}
+                      className="w-10 h-7 rounded border border-amber-200 bg-white text-center text-xs font-bold text-slate-800 focus:border-amber-400 focus:outline-none disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={addMiscItem}
+                      disabled={
+                        !selectedTable ||
+                        !miscName.trim() ||
+                        miscPrice === "" ||
+                        !Number.isFinite(Number(miscPrice)) ||
+                        Number(miscPrice) < 0
+                      }
+                      className="h-7 px-2 rounded bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-[11px] font-bold shrink-0"
+                    >
+                      {t("Add misc")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0 p-1.5 overflow-y-auto bg-slate-50">
                   {currentBill.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-6">
-                      <Receipt className="w-8 h-8 mb-1.5 stroke-1 opacity-50" />
-                      <p className="text-sm font-semibold">No items yet</p>
-                      <p className="text-xs mt-0.5">Tap a menu item to add it</p>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-4">
+                      <Receipt className="w-6 h-6 mb-1 stroke-1 opacity-50" />
+                      <p className="text-xs font-semibold">No items yet</p>
                     </div>
                   ) : (
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       {currentBill.map((line) => (
                         <div
                           key={line.id}
-                          className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5"
+                          className="bg-white border border-slate-200 rounded-md px-2 py-1.5"
                         >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-sm leading-snug text-slate-900 truncate">
-                              {localizedName(line, lang)}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              {CURRENCY} {line.price.toFixed(0)} × {line.quantity} ={" "}
+                          <div className="font-semibold text-xs leading-tight text-slate-900 truncate">
+                            {localizedName(line, lang)}
+                          </div>
+                          <div className="flex items-center justify-between gap-1.5 mt-1">
+                            <div className="text-[11px] text-slate-500 font-mono truncate">
+                              {CURRENCY}{line.price.toFixed(0)}×{line.quantity}=
                               <span className="font-bold text-amber-600">
-                                {CURRENCY} {(line.price * line.quantity).toFixed(0)}
+                                {CURRENCY}{(line.price * line.quantity).toFixed(0)}
                               </span>
                             </div>
-                          </div>
-
-                          <div className="flex items-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0">
-                            <button
-                              onClick={() => {
-                                setCartQtyDraft((prev) => {
-                                  const next = { ...prev };
-                                  delete next[line.id];
-                                  return next;
-                                });
-                                changeQty(line.id, -1);
-                              }}
-                              className="w-7 h-7 rounded-md bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 active:scale-95"
-                              aria-label="Decrease"
-                            >
-                              <Minus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                            </button>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={cartQtyDraft[line.id] ?? String(line.quantity)}
-                              onChange={(e) => {
-                                const raw = e.target.value.replace(/[^\d]/g, "").slice(0, 3);
-                                setCartQtyDraft((prev) => ({ ...prev, [line.id]: raw }));
-                                if (raw !== "") setQty(line.id, Number(raw));
-                              }}
-                              onBlur={() => {
-                                const draft = cartQtyDraft[line.id];
-                                setCartQtyDraft((prev) => {
-                                  const next = { ...prev };
-                                  delete next[line.id];
-                                  return next;
-                                });
-                                if (draft === "" || Number(draft) < 1) setQty(line.id, 1);
-                              }}
-                              onFocus={(e) => e.target.select()}
-                              className="w-8 h-7 text-center font-black text-sm text-slate-900 tabular-nums bg-transparent border-0 focus:outline-none focus:ring-0"
-                              aria-label="Quantity"
-                            />
-                            <button
-                              onClick={() => {
-                                setCartQtyDraft((prev) => {
-                                  const next = { ...prev };
-                                  delete next[line.id];
-                                  return next;
-                                });
-                                changeQty(line.id, 1);
-                              }}
-                              className="w-7 h-7 rounded-md bg-amber-500 hover:bg-amber-600 flex items-center justify-center text-white active:scale-95"
-                              aria-label="Increase"
-                            >
-                              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                            </button>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <button
+                                onClick={() => {
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[line.id];
+                                    return next;
+                                  });
+                                  changeQty(line.id, -1);
+                                }}
+                                className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700"
+                                aria-label="Decrease"
+                              >
+                                <Minus className="w-3 h-3" strokeWidth={2.5} />
+                              </button>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={cartQtyDraft[line.id] ?? String(line.quantity)}
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/[^\d]/g, "").slice(0, 3);
+                                  setCartQtyDraft((prev) => ({ ...prev, [line.id]: raw }));
+                                  if (raw !== "") setQty(line.id, Number(raw));
+                                }}
+                                onBlur={() => {
+                                  const draft = cartQtyDraft[line.id];
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[line.id];
+                                    return next;
+                                  });
+                                  if (draft === "" || Number(draft) < 1) setQty(line.id, 1);
+                                }}
+                                onFocus={(e) => e.target.select()}
+                                className="w-8 h-6 text-center font-bold text-xs text-slate-900 tabular-nums border border-slate-200 rounded bg-white focus:border-amber-400 focus:outline-none"
+                                aria-label="Quantity"
+                              />
+                              <button
+                                onClick={() => {
+                                  setCartQtyDraft((prev) => {
+                                    const next = { ...prev };
+                                    delete next[line.id];
+                                    return next;
+                                  });
+                                  changeQty(line.id, 1);
+                                }}
+                                className="w-6 h-6 rounded bg-amber-500 hover:bg-amber-600 flex items-center justify-center text-white"
+                                aria-label="Increase"
+                              >
+                                <Plus className="w-3 h-3" strokeWidth={2.5} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1445,26 +1523,22 @@ export default function HomePage() {
                   )}
                 </div>
 
-                <div className="border-t border-slate-200 px-3 py-2 space-y-1.5 text-sm bg-white shrink-0">
+                <div className="border-t border-slate-200 px-2.5 py-1.5 space-y-1 text-sm bg-white shrink-0">
                   {TAX_RATE > 0 && (
-                    <div className="flex justify-between text-slate-500 text-xs">
+                    <div className="flex justify-between text-slate-500 text-[10px]">
                       <span>{t("Subtotal")}</span>
-                      <span className="font-mono">
-                        {CURRENCY} {subtotal.toFixed(2)}
-                      </span>
+                      <span className="font-mono">{CURRENCY} {subtotal.toFixed(2)}</span>
                     </div>
                   )}
                   {TAX_RATE > 0 && (
-                    <div className="flex justify-between text-slate-500 text-xs">
+                    <div className="flex justify-between text-slate-500 text-[10px]">
                       <span>Tax ({TAX_RATE}%)</span>
-                      <span className="font-mono">
-                        {CURRENCY} {taxAmount.toFixed(2)}
-                      </span>
+                      <span className="font-mono">{CURRENCY} {taxAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-baseline">
-                    <span className="font-bold text-sm text-slate-800">{t("TOTAL")}</span>
-                    <span className="font-extrabold font-mono text-xl text-amber-600">
+                    <span className="font-bold text-xs text-slate-800">{t("TOTAL")}</span>
+                    <span className="font-extrabold font-mono text-lg text-amber-600">
                       {CURRENCY} {total.toFixed(2)}
                     </span>
                   </div>
@@ -1481,12 +1555,12 @@ export default function HomePage() {
                           const prev = getSession(selectedTable);
                           persistCart(selectedTable, { ...prev, paymentMethod: pm, customerName });
                         }}
-                        className={`py-1 rounded-md text-xs font-bold border transition-colors ${
+                        className={`py-1 rounded text-[11px] font-bold border transition-colors ${
                           paymentMethod === pmLabel
                             ? pmLabel === "Udhaar"
                               ? "bg-red-50 border-red-500 text-red-700"
                               : "bg-slate-800 border-slate-800 text-white"
-                            : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                            : "bg-white border-slate-200 text-slate-500"
                         }`}
                       >
                         {t(pmLabel)}
@@ -1495,9 +1569,9 @@ export default function HomePage() {
                   </div>
 
                   {paymentMethod === "Cash" && currentBill.length > 0 && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <div className="relative flex-1">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono pointer-events-none">
+                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-mono pointer-events-none">
                           {CURRENCY}
                         </span>
                         <input
@@ -1507,40 +1581,40 @@ export default function HomePage() {
                           inputMode="decimal"
                           value={amountReceived}
                           onChange={(e) => setAmountReceived(e.target.value)}
-                          placeholder="Received"
-                          className="w-full pl-8 pr-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-mono font-bold text-sm focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
+                          placeholder="Recv"
+                          className="w-full pl-6 pr-1 py-1 rounded border border-slate-200 bg-slate-50 text-slate-800 font-mono font-bold text-xs focus:outline-none focus:border-amber-400"
                         />
                       </div>
                       {changeReturn !== null && (
                         <div
-                          className={`shrink-0 rounded-lg px-2 py-1.5 text-xs font-bold font-mono ${
+                          className={`shrink-0 rounded px-1.5 py-1 text-[10px] font-bold font-mono ${
                             changeReturn >= 0
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               : "bg-red-50 text-red-700 border border-red-200"
                           }`}
                         >
-                          {changeReturn >= 0 ? "Chg" : "Short"} {CURRENCY} {Math.abs(changeReturn).toFixed(0)}
+                          {changeReturn >= 0 ? "Chg" : "Short"} {Math.abs(changeReturn).toFixed(0)}
                         </div>
                       )}
                     </div>
                   )}
 
-                  <div className="flex gap-1.5 pt-0.5">
+                  <div className="flex gap-1">
                     <button
                       onClick={() => setShowPreviewModal(true)}
                       disabled={currentBill.length === 0}
-                      className="shrink-0 px-3 bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-40 font-semibold py-2 rounded-lg text-sm flex items-center justify-center gap-1 transition-colors"
+                      className="shrink-0 w-8 h-8 bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-40 rounded flex items-center justify-center"
                       title={t("Preview Receipt")}
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-3.5 h-3.5" />
                     </button>
 
                     <button
                       onClick={makeBill}
                       disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim())}
-                      className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-1.5 rounded text-xs flex items-center justify-center gap-1 active:scale-[0.98] transition-all"
                     >
-                      {isPrinting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                      {isPrinting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
                       {isPrinting
                         ? t("Printing...")
                         : paymentMethod === "Udhaar" && !customerName.trim()

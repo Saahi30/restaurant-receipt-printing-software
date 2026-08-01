@@ -77,6 +77,10 @@ export const translations: Record<string, Record<Language, string>> = {
   "Select price": { en: "Select price", hi: "कीमत चुनें" },
   "Qty": { en: "Qty", hi: "मात्रा" },
   "From": { en: "From", hi: "से" },
+  "Misc item": { en: "Misc item", hi: "अन्य आइटम" },
+  "Item name": { en: "Item name", hi: "आइटम नाम" },
+  "Price": { en: "Price", hi: "कीमत" },
+  "Add misc": { en: "Add", hi: "जोड़ें" },
   "Current Bill": { en: "Current Bill", hi: "वर्तमान बिल" },
   "Select a table first to start billing": {
     en: "Select a table first to start billing",
