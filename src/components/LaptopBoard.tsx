@@ -281,16 +281,28 @@ export function LaptopBoard({
       upiId: settings.upiId,
       paperWidth: "80mm",
       receiptHeaderNote: "",
+      lang: session.receipt?.lang || lang,
     };
   };
 
   const printReceipt = async (data: ReceiptProps) => {
     if (printerConnected && portRef.current) {
       setPrinterStatus("Printing...");
+      const escposData = {
+        ...data,
+        lang: data.lang || lang,
+        items: data.items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity,
+          notes: item.notes,
+        })),
+      };
       const res = await fetch("/api/escpos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "receipt", data }),
+        body: JSON.stringify({ type: "receipt", data: escposData }),
       });
       const json = await res.json();
       if (json.success && json.bytes) {

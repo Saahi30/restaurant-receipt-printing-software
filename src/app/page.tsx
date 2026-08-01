@@ -529,6 +529,7 @@ export default function HomePage() {
       upiId: src.upiId,
       paperWidth: "80mm",
       receiptHeaderNote: "",
+      lang,
     };
   };
 

@@ -70,10 +70,12 @@ export interface ReceiptProps {
   upiId?: string;
   receiptHeaderNote?: string;
   isKOT?: boolean;
+  /** App language when the bill was created — drives label language. */
+  lang?: "en" | "hi";
 }
 
 export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((props, ref) => {
-  const { t } = useTranslation();
+  const { t, lang: uiLang } = useTranslation();
   const {
     restaurantName,
     tagline,
@@ -103,14 +105,37 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
     wifiPassword,
     paperWidth = "80mm",
     upiId,
-    receiptHeaderNote = "DINE-IN BILL / TAX INVOICE",
+    receiptHeaderNote,
     isKOT = false,
+    lang: receiptLang,
   } = props;
 
-  const widthClass = paperWidth === "58mm" ? "max-w-[58mm] text-[11px]" : "max-w-[80mm] text-[13px]";
+  const lang = receiptLang || uiLang;
+  const tr = t;
 
-  // Build the UPI deep-link only when a VPA / UPI ID is configured.
-  // The amount (am) is auto-set to this bill's grand total.
+  const displayOrderType = (() => {
+    const n = orderType.toLowerCase();
+    if (n.includes("take") || n.includes("parcel")) return tr("Takeaway");
+    if (n.includes("dine")) return tr("Dine-In");
+    return orderType;
+  })();
+
+  const displayPayment = (() => {
+    const m = paymentMethod.toLowerCase();
+    if (m === "cash") return tr("Cash");
+    if (m === "upi") return tr("UPI");
+    if (m === "udhaar") return tr("Udhaar");
+    return paymentMethod;
+  })();
+
+  const headerNote = receiptHeaderNote?.trim() || tr("TAX INVOICE / BILL");
+
+  const widthClass = paperWidth === "58mm" ? "max-w-[58mm] text-[11px]" : "max-w-[80mm] text-[13px]";
+  const fontStack =
+    lang === "hi"
+      ? "'Nirmala UI', Mangal, 'Noto Sans Devanagari', ui-sans-serif, system-ui, sans-serif"
+      : "'Courier New', Courier, monospace";
+
   const upiPayUrl =
     upiId && upiId.trim() !== ""
       ? buildUpiLink({
@@ -125,23 +150,25 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
     return (
       <div
         ref={ref}
-        className={`bg-white text-black font-mono mx-auto p-3 shadow-sm border border-gray-300 leading-tight ${widthClass} print:shadow-none print:border-none print:m-0 print:w-full print:max-w-none`}
-        style={{ fontFamily: "'Courier New', Courier, monospace" }}
+        className={`bg-white text-black mx-auto p-3 shadow-sm border border-gray-300 leading-tight ${widthClass} print:shadow-none print:border-none print:m-0 print:w-full print:max-w-none`}
+        style={{ fontFamily: fontStack }}
       >
         <div className="text-center border-b-2 border-black pb-2 mb-2">
           <div className="text-base font-extrabold uppercase tracking-wider bg-black text-white py-0.5 px-2 inline-block">
-            KITCHEN ORDER TOKEN (KOT)
+            {tr("KITCHEN ORDER TOKEN (KOT)")}
           </div>
           <div className="font-bold text-sm mt-1">{restaurantName}</div>
         </div>
 
         <div className="flex justify-between border-b border-dashed border-gray-400 pb-2 mb-2 text-xs">
           <div>
-            <span className="font-bold">Order:</span> {orderNumber}<br />
-            <span className="font-bold">Type:</span> {orderType}
+            <span className="font-bold">{tr("Order")}:</span> {orderNumber}
+            <br />
+            <span className="font-bold">{tr("Type")}:</span> {displayOrderType}
           </div>
           <div className="text-right">
-            <span className="font-bold text-sm bg-gray-200 px-1 py-0.5 rounded">{tableNumber}</span><br />
+            <span className="font-bold text-sm bg-gray-200 px-1 py-0.5 rounded">{tableNumber}</span>
+            <br />
             <span className="text-[10px]">{date.split(" ").slice(1).join(" ")}</span>
           </div>
         </div>
@@ -149,8 +176,8 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         <table className="w-full text-left border-collapse mb-2">
           <thead>
             <tr className="border-b-2 border-black text-xs">
-              <th className="py-1 font-extrabold">ITEM DESCRIPTION</th>
-              <th className="py-1 text-right font-extrabold w-12">QTY</th>
+              <th className="py-1 font-extrabold">{tr("ITEM DESCRIPTION")}</th>
+              <th className="py-1 text-right font-extrabold w-12">{tr("Qty")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -160,7 +187,7 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
                   <div>{item.name}</div>
                   {item.notes && (
                     <div className="text-xs font-normal text-red-600 bg-red-50 p-0.5 rounded mt-0.5 inline-block">
-                      ↳ Note: {item.notes}
+                      ↳ {tr("Note")}: {item.notes}
                     </div>
                   )}
                 </td>
@@ -171,7 +198,7 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         </table>
 
         <div className="border-t-2 border-black pt-2 text-center font-bold text-xs">
-          *** END OF KITCHEN ORDER ***
+          {tr("*** END OF KITCHEN ORDER ***")}
         </div>
       </div>
     );
@@ -180,53 +207,70 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
   return (
     <div
       ref={ref}
-      className={`bg-white text-black font-mono mx-auto p-4 shadow-md border border-gray-300 leading-snug ${widthClass} print:shadow-none print:border-none print:m-0 print:p-2 print:w-full print:max-w-none`}
-      style={{ fontFamily: "'Courier New', Courier, monospace" }}
+      className={`bg-white text-black mx-auto p-4 shadow-md border border-gray-300 leading-snug ${widthClass} print:shadow-none print:border-none print:m-0 print:p-2 print:w-full print:max-w-none`}
+      style={{ fontFamily: fontStack }}
     >
-      {/* Header */}
       <div className="text-center pb-2 border-b border-dashed border-gray-400">
-        {receiptHeaderNote && (
+        {headerNote && (
           <div className="text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-0.5">
-            {receiptHeaderNote}
+            {headerNote}
           </div>
         )}
         <div className="font-extrabold text-lg uppercase tracking-tight text-black">{restaurantName}</div>
         {tagline && <div className="text-xs text-gray-700 italic">{tagline}</div>}
         {address && <div className="text-xs text-gray-800 mt-1">{address}</div>}
-        {phone && <div className="text-xs text-gray-800">Tel: {phone}</div>}
-        {gstNumber && <div className="text-xs font-bold text-black mt-1 bg-gray-100 py-0.5 rounded px-1 inline-block">{gstNumber}</div>}
+        {phone && (
+          <div className="text-xs text-gray-800">
+            {tr("Tel")}: {phone}
+          </div>
+        )}
+        {gstNumber && (
+          <div className="text-xs font-bold text-black mt-1 bg-gray-100 py-0.5 rounded px-1 inline-block">
+            {gstNumber}
+          </div>
+        )}
       </div>
 
-      {/* Bill & Customer Meta */}
       <div className="py-2 border-b border-dashed border-gray-400 text-xs">
         <div className="flex justify-between">
-          <span><span className="font-bold">{t("Bill No")}:</span> {orderNumber}</span>
-          <span><span className="font-bold">{t("Date")}:</span> {date.split(" ")[0]}</span>
+          <span>
+            <span className="font-bold">{tr("Bill No")}:</span> {orderNumber}
+          </span>
+          <span>
+            <span className="font-bold">{tr("Date")}:</span> {date.split(" ")[0]}
+          </span>
         </div>
         <div className="flex justify-between mt-0.5">
-          <span><span className="font-bold">{t("Table")}:</span> <strong className="bg-gray-200 px-1 rounded">{tableNumber}</strong></span>
-          <span><span className="font-bold">{t("Mode")}:</span> {orderType}</span>
+          <span>
+            <span className="font-bold">{tr("Table")}:</span>{" "}
+            <strong className="bg-gray-200 px-1 rounded">{tableNumber}</strong>
+          </span>
+          <span>
+            <span className="font-bold">{tr("Mode")}:</span> {displayOrderType}
+          </span>
         </div>
         {customerName && (
           <div className="mt-1 pt-1 border-t border-dotted border-gray-300 text-[11px]">
-            <span className="font-bold">Customer:</span> {customerName} {customerPhone ? `(${customerPhone})` : ""}
+            <span className="font-bold">{tr("Customer")}:</span> {customerName}{" "}
+            {customerPhone ? `(${customerPhone})` : ""}
           </div>
         )}
         {paymentMethod.toLowerCase() === "udhaar" && (
           <div className="mt-2 text-center bg-black text-white font-bold py-1 text-sm tracking-widest uppercase">
-            UDHAAR (UNPAID)
+            {tr("UDHAAR (UNPAID)")}
           </div>
         )}
       </div>
 
-      {/* Item Table */}
       <table className="w-full text-left border-collapse my-2">
         <thead>
           <tr className="border-b border-black text-xs font-bold">
-            <th className="py-1">{t("Item")}</th>
-            <th className="py-1 text-center w-12">{t("Qty")}</th>
-            <th className="py-1 text-right w-14">{t("Rate")}</th>
-            <th className="py-1 text-right w-16">{t("Total")} ({currency})</th>
+            <th className="py-1">{tr("Item")}</th>
+            <th className="py-1 text-center w-12">{tr("Qty")}</th>
+            <th className="py-1 text-right w-14">{tr("Rate")}</th>
+            <th className="py-1 text-right w-16">
+              {tr("Total")} ({currency})
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-dotted divide-gray-300 text-xs">
@@ -250,54 +294,73 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         </tbody>
       </table>
 
-      {/* Financial Totals */}
       <div className="border-t border-black pt-1.5 text-xs space-y-1">
         <div className="flex justify-between">
-          <span>Subtotal</span>
-          <span className="font-medium">{currency}{subtotal.toFixed(2)}</span>
+          <span>{tr("Subtotal")}</span>
+          <span className="font-medium">
+            {currency}
+            {subtotal.toFixed(2)}
+          </span>
         </div>
 
         {discountAmount > 0 && (
           <div className="flex justify-between text-green-700">
-            <span>Discount {discountReason ? `(${discountReason})` : ""}</span>
-            <span className="font-bold">-{currency}{discountAmount.toFixed(2)}</span>
+            <span>
+              {tr("Discount")} {discountReason ? `(${discountReason})` : ""}
+            </span>
+            <span className="font-bold">
+              -{currency}
+              {discountAmount.toFixed(2)}
+            </span>
           </div>
         )}
 
         {serviceCharge > 0 && (
           <div className="flex justify-between text-gray-700">
-            <span>Service Charge ({serviceChargeRate}%)</span>
-            <span>{currency}{serviceCharge.toFixed(2)}</span>
+            <span>
+              {tr("Service Charge")} ({serviceChargeRate}%)
+            </span>
+            <span>
+              {currency}
+              {serviceCharge.toFixed(2)}
+            </span>
           </div>
         )}
 
         {taxAmount > 0 && (
           <div className="flex justify-between text-gray-700">
-            <span>Tax / GST ({taxRate}%)</span>
-            <span>{currency}{taxAmount.toFixed(2)}</span>
+            <span>
+              {tr("Tax / GST")} ({taxRate}%)
+            </span>
+            <span>
+              {currency}
+              {taxAmount.toFixed(2)}
+            </span>
           </div>
         )}
 
         <div className="border-t-2 border-double border-black pt-1.5 mt-1 flex justify-between text-sm font-extrabold text-black">
-          <span>GRAND TOTAL:</span>
-          <span>{currency}{totalAmount.toFixed(2)}</span>
+          <span>{tr("GRAND TOTAL")}:</span>
+          <span>
+            {currency}
+            {totalAmount.toFixed(2)}
+          </span>
         </div>
 
         <div className="flex justify-between text-[11px] pt-1 text-gray-800">
-          <span>Payment Mode:</span>
-          <span className="font-bold uppercase bg-gray-200 px-1.5 py-0.5 rounded text-black">{paymentMethod}</span>
+          <span>{tr("Payment Mode")}:</span>
+          <span className="font-bold uppercase bg-gray-200 px-1.5 py-0.5 rounded text-black">
+            {displayPayment}
+          </span>
         </div>
       </div>
 
-      {/* QR Code & WiFi Footer */}
       <div className="mt-3 pt-2 border-t border-dashed border-gray-400 text-center">
         {upiPayUrl !== "" && (
           <div className="mb-2 inline-block bg-white p-2 border border-gray-300 rounded">
             <div className="text-[10px] font-bold uppercase tracking-wider text-gray-700 mb-1">
-              Scan & Pay via UPI
+              {tr("Scan & Pay via UPI")}
             </div>
-            {/* Real, scannable QR code encoding the upi://pay deep-link.
-                The amount is auto-set to this bill's grand total. */}
             <QRCode
               value={upiPayUrl}
               size={paperWidth === "58mm" ? 84 : 100}
@@ -317,9 +380,15 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
 
         {wifiSSID && (
           <div className="bg-gray-100 p-1.5 rounded my-1 text-[11px]">
-            <div className="font-bold">Free Guest Wi-Fi</div>
-            <div>Network: <strong>{wifiSSID}</strong></div>
-            {wifiPassword && <div>Password: <strong>{wifiPassword}</strong></div>}
+            <div className="font-bold">{tr("Free Guest Wi-Fi")}</div>
+            <div>
+              {tr("Network")}: <strong>{wifiSSID}</strong>
+            </div>
+            {wifiPassword && (
+              <div>
+                {tr("Password")}: <strong>{wifiPassword}</strong>
+              </div>
+            )}
           </div>
         )}
 

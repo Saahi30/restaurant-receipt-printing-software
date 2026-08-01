@@ -1,5 +1,12 @@
 // ESC/POS Thermal Printer Command Generator
 
+import {
+  receiptLabel,
+  translateOrderType,
+  translatePaymentMethod,
+  type ReceiptLang,
+} from "@/lib/receipt-labels";
+
 export interface ReceiptData {
   restaurantName: string;
   tagline?: string;
@@ -37,6 +44,8 @@ export interface ReceiptData {
   paperWidth: "80mm" | "58mm"; // 80mm = ~48 chars per line, 58mm = ~32 chars per line
   cutPaper?: boolean;
   openDrawer?: boolean;
+  /** Ignored for thermal print — ESC/POS receipts are always English. */
+  lang?: ReceiptLang;
 }
 
 export class EscPosBuilder {
@@ -187,6 +196,11 @@ export function generateEscPosReceipt(data: ReceiptData): {
   hex: string;
 } {
   const builder = new EscPosBuilder(data.paperWidth);
+  // Thermal printers: English labels only (no Devanagari / romanized Hindi).
+  const lang: ReceiptLang = "en";
+  const L = (key: Parameters<typeof receiptLabel>[0]) => receiptLabel(key, lang);
+  const orderType = translateOrderType(data.orderType, lang);
+  const payment = translatePaymentMethod(data.paymentMethod, lang);
 
   if (data.openDrawer) {
     builder.drawer();
@@ -198,31 +212,32 @@ export function generateEscPosReceipt(data: ReceiptData): {
   
   if (data.tagline) builder.line(data.tagline);
   if (data.address) builder.line(data.address);
-  if (data.phone) builder.line(`Tel: ${data.phone}`);
+  if (data.phone) builder.line(`${L("tel")}: ${data.phone}`);
   if (data.gstNumber) builder.bold(true).line(data.gstNumber).bold(false);
   
   builder.divider("=");
   
   // Bill Info
   builder.align("left");
-  builder.row("Bill No: " + data.orderNumber, "Date: " + data.date.split(" ")[0]);
-  builder.row("Type: " + data.orderType, "Table: " + data.tableNumber);
+  builder.row(`${L("billNo")}: ` + data.orderNumber, `${L("date")}: ` + data.date.split(" ")[0]);
+  builder.row(`${L("type")}: ` + orderType, `${L("table")}: ` + data.tableNumber);
   if (data.customerName) {
-    builder.row("Customer: " + data.customerName, data.customerPhone || "");
+    builder.row(`${L("customer")}: ` + data.customerName, data.customerPhone || "");
   }
 
   builder.divider("-");
   
   // Table Header
   builder.bold(true);
-  builder.row3("Item", "Qty x Rate", "Total (" + data.currency + ")");
+  builder.row3(L("item"), L("qtyRate"), `${L("total")} (${data.currency})`);
   builder.bold(false);
   builder.divider("-");
 
   // Items
   data.items.forEach((item) => {
+    const lineTotal = item.total ?? item.price * item.quantity;
     const rateStr = `${item.quantity}x${item.price.toFixed(2)}`;
-    const totalStr = item.total.toFixed(2);
+    const totalStr = lineTotal.toFixed(2);
     builder.row3(item.name, rateStr, totalStr);
     if (item.notes) {
       builder.line(`  * ${item.notes}`);
@@ -232,42 +247,42 @@ export function generateEscPosReceipt(data: ReceiptData): {
   builder.divider("-");
 
   // Totals
-  builder.row("Subtotal:", `${data.currency}${data.subtotal.toFixed(2)}`);
+  builder.row(`${L("subtotal")}:`, `${data.currency}${data.subtotal.toFixed(2)}`);
   
   if (data.discountAmount > 0) {
     const reason = data.discountReason ? ` (${data.discountReason})` : "";
-    builder.row(`Discount${reason}:`, `-${data.currency}${data.discountAmount.toFixed(2)}`);
+    builder.row(`${L("discount")}${reason}:`, `-${data.currency}${data.discountAmount.toFixed(2)}`);
   }
 
   if (data.serviceCharge > 0) {
-    builder.row(`Service Charge (${data.serviceChargeRate}%):`, `${data.currency}${data.serviceCharge.toFixed(2)}`);
+    builder.row(`${L("serviceCharge")} (${data.serviceChargeRate}%):`, `${data.currency}${data.serviceCharge.toFixed(2)}`);
   }
 
   if (data.taxAmount > 0) {
-    builder.row(`Tax / GST (${data.taxRate}%):`, `${data.currency}${data.taxAmount.toFixed(2)}`);
+    builder.row(`${L("taxGst")} (${data.taxRate}%):`, `${data.currency}${data.taxAmount.toFixed(2)}`);
   }
 
   builder.divider("=");
   
   builder.size("double-height").bold(true);
-  builder.row("TOTAL AMOUNT:", `${data.currency}${data.totalAmount.toFixed(2)}`);
+  builder.row(`${L("totalAmount")}:`, `${data.currency}${data.totalAmount.toFixed(2)}`);
   builder.size("normal").bold(false);
   
   builder.divider("=");
-  builder.row("Payment Mode:", data.paymentMethod.toUpperCase());
+  builder.row(`${L("paymentMode")}:`, payment.toUpperCase());
 
   // UPI payment info (VPA only — amount auto-fills when customer scans the QR)
   if (data.upiId && data.upiId.trim() !== "") {
     builder.divider("-");
-    builder.line("PAY VIA UPI (Scan QR on counter)");
-    builder.line("UPI ID: " + data.upiId.trim());
-    builder.line("Amount auto-set to bill total");
+    builder.line(L("payViaUpi"));
+    builder.line(`${L("upiId")}: ` + data.upiId.trim());
+    builder.line(L("amountAuto"));
   }
 
   // Footer
   builder.feed(1).align("center");
   if (data.wifiSSID) {
-    builder.line(`Free WiFi: ${data.wifiSSID} | Pwd: ${data.wifiPassword || "None"}`);
+    builder.line(`${L("freeWifi")}: ${data.wifiSSID} | ${L("pwd")}: ${data.wifiPassword || L("none")}`);
   }
   if (data.aboutUs && data.aboutUs.trim() !== "") {
     builder.divider("-");
@@ -299,35 +314,40 @@ export function generateEscPosKOT(data: {
   date: string;
   items: Array<{ name: string; quantity: number; notes?: string }>;
   paperWidth: "80mm" | "58mm";
+  lang?: ReceiptLang;
 }): { uint8Array: Uint8Array; hex: string } {
   const builder = new EscPosBuilder(data.paperWidth);
+  // Thermal printers: English labels only.
+  const lang: ReceiptLang = "en";
+  const L = (key: Parameters<typeof receiptLabel>[0]) => receiptLabel(key, lang);
+  const orderType = translateOrderType(data.orderType, lang);
 
   builder
     .align("center")
     .size("double")
     .bold(true)
-    .line("KITCHEN ORDER (KOT)")
+    .line(L("kotTitle"))
     .size("normal")
     .bold(false)
     .line(data.restaurantName)
     .divider("=")
     .align("left")
-    .row("Order: " + data.orderNumber, "Time: " + data.date.split(" ").slice(1).join(" "))
-    .row("Table: " + data.tableNumber, "Type: " + data.orderType)
+    .row(`${L("order")}: ` + data.orderNumber, `${L("time")}: ` + data.date.split(" ").slice(1).join(" "))
+    .row(`${L("table")}: ` + data.tableNumber, `${L("type")}: ` + orderType)
     .divider("-")
     .bold(true)
-    .row("ITEM NAME", "QTY")
+    .row(L("itemName"), L("qty"))
     .bold(false)
     .divider("-");
 
   data.items.forEach((item) => {
     builder.size("double-height").bold(true).row(item.name, `x ${item.quantity}`).size("normal").bold(false);
     if (item.notes) {
-      builder.line(`  ---> NOTE: ${item.notes}`);
+      builder.line(`  ---> ${L("note")}: ${item.notes}`);
     }
   });
 
-  builder.divider("=").align("center").line("*** END OF KOT ***").cut();
+  builder.divider("=").align("center").line(L("endKot")).cut();
 
   return {
     uint8Array: builder.getUint8Array(),
