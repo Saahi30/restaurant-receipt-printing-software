@@ -152,11 +152,11 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
     return (
       <div
         ref={ref}
-        className={`bg-white text-black mx-auto p-3 shadow-sm border border-gray-300 leading-tight ${widthClass} print:shadow-none print:border-none print:m-0 print:w-full print:max-w-none`}
+        className={`bg-white text-black mx-auto p-3 shadow-sm border border-gray-300 leading-tight ${widthClass} print:shadow-none print:border-none print:m-0 print:p-0 print:px-0.5 print:w-full print:max-w-none`}
         style={{ fontFamily: fontStack }}
       >
         <div className="text-center border-b-2 border-black pb-2 mb-2">
-          <div className="text-base font-extrabold uppercase tracking-wider bg-black text-white py-0.5 px-2 inline-block">
+          <div className="text-base font-extrabold uppercase tracking-wider bg-black text-white py-0.5 px-2 inline-block print:bg-black print:text-black print:border-2 print:border-black">
             {tr("KITCHEN ORDER TOKEN (KOT)")}
           </div>
           <div className="font-bold text-sm mt-1">{restaurantName}</div>
@@ -209,31 +209,31 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
   return (
     <div
       ref={ref}
-      className={`bg-white text-black mx-auto p-4 shadow-md border border-gray-300 leading-snug ${widthClass} print:shadow-none print:border-none print:m-0 print:p-2 print:w-full print:max-w-none`}
+      className={`receipt-print bg-white text-black mx-auto px-1 py-2 shadow-md border border-gray-300 leading-snug ${widthClass} print:shadow-none print:border-none print:m-0 print:px-0 print:py-0 print:w-full print:max-w-none`}
       style={{ fontFamily: fontStack }}
     >
-      <div className="text-center pb-2 border-b border-dashed border-gray-400">
+      <div className="text-center pb-2 border-b border-dashed border-black">
         {headerNote && (
-          <div className="text-[10px] font-bold tracking-widest text-gray-500 uppercase mb-0.5">
+          <div className="text-[10px] font-bold tracking-widest text-black uppercase mb-0.5">
             {headerNote}
           </div>
         )}
         <div className="font-extrabold text-lg uppercase tracking-tight text-black">{restaurantName}</div>
-        {tagline && <div className="text-xs text-gray-700 italic">{tagline}</div>}
-        {address && <div className="text-xs text-gray-800 mt-1">{address}</div>}
+        {tagline && <div className="text-xs text-black italic">{tagline}</div>}
+        {address && <div className="text-xs text-black mt-1">{address}</div>}
         {phone && (
-          <div className="text-xs text-gray-800">
+          <div className="text-xs text-black">
             {tr("Tel")}: {phone}
           </div>
         )}
         {gstNumber && (
-          <div className="text-xs font-bold text-black mt-1 bg-gray-100 py-0.5 rounded px-1 inline-block">
+          <div className="text-xs font-bold text-black mt-1 border border-black py-0.5 rounded px-1 inline-block">
             {gstNumber}
           </div>
         )}
       </div>
 
-      <div className="py-2 border-b border-dashed border-gray-400 text-xs">
+      <div className="py-2 border-b border-dashed border-black text-xs text-black">
         <div className="flex justify-between">
           <span>
             <span className="font-bold">{tr("Bill No")}:</span> {orderNumber}
@@ -245,26 +245,26 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         <div className="flex justify-between mt-0.5">
           <span>
             <span className="font-bold">{tr("Table")}:</span>{" "}
-            <strong className="bg-gray-200 px-1 rounded">{tableNumber}</strong>
+            <strong className="border border-black px-1 rounded">{tableNumber}</strong>
           </span>
           <span>
             <span className="font-bold">{tr("Mode")}:</span> {displayOrderType}
           </span>
         </div>
         {customerName && (
-          <div className="mt-1 pt-1 border-t border-dotted border-gray-300 text-[11px]">
+          <div className="mt-1 pt-1 border-t border-dotted border-black text-[11px]">
             <span className="font-bold">{tr("Customer")}:</span> {customerName}{" "}
             {customerPhone ? `(${customerPhone})` : ""}
           </div>
         )}
         {paymentMethod.toLowerCase() === "udhaar" && (
-          <div className="mt-2 text-center bg-black text-white font-bold py-1 text-sm tracking-widest uppercase">
+          <div className="mt-2 text-center border-2 border-black font-bold py-1 text-sm tracking-widest uppercase">
             {tr("UDHAAR (UNPAID)")}
           </div>
         )}
       </div>
 
-      <table className="w-full text-left border-collapse my-2">
+      <table className="w-full text-left border-collapse my-2 text-black">
         <thead>
           <tr className="border-b border-black text-xs font-bold">
             <th className="py-1">{tr("Item")}</th>
@@ -275,18 +275,18 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-dotted divide-gray-300 text-xs">
+        <tbody className="divide-y divide-dotted divide-black text-xs">
           {items.map((item, idx) => (
             <React.Fragment key={idx}>
               <tr>
                 <td className="py-1 font-semibold pr-1">{localizedName(item, lang)}</td>
                 <td className="py-1 text-center font-bold">{item.quantity}</td>
-                <td className="py-1 text-right text-gray-700">{item.price.toFixed(2)}</td>
+                <td className="py-1 text-right text-black">{item.price.toFixed(2)}</td>
                 <td className="py-1 text-right font-bold">{(item.price * item.quantity).toFixed(2)}</td>
               </tr>
               {item.notes && (
                 <tr>
-                  <td colSpan={4} className="pb-1 text-[10px] text-gray-600 italic pl-2">
+                  <td colSpan={4} className="pb-1 text-[10px] text-black italic pl-2">
                     * {item.notes}
                   </td>
                 </tr>
@@ -296,18 +296,18 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         </tbody>
       </table>
 
-      <div className="border-t border-black pt-1.5 text-xs space-y-1">
+      <div className="border-t border-black pt-1.5 text-xs space-y-1 text-black">
         <div className="flex justify-between">
-          <span>{tr("Subtotal")}</span>
-          <span className="font-medium">
+          <span className="font-semibold">{tr("Subtotal")}</span>
+          <span className="font-bold">
             {currency}
             {subtotal.toFixed(2)}
           </span>
         </div>
 
         {discountAmount > 0 && (
-          <div className="flex justify-between text-green-700">
-            <span>
+          <div className="flex justify-between">
+            <span className="font-semibold">
               {tr("Discount")} {discountReason ? `(${discountReason})` : ""}
             </span>
             <span className="font-bold">
@@ -318,11 +318,11 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         )}
 
         {serviceCharge > 0 && (
-          <div className="flex justify-between text-gray-700">
-            <span>
+          <div className="flex justify-between">
+            <span className="font-semibold">
               {tr("Service Charge")} ({serviceChargeRate}%)
             </span>
-            <span>
+            <span className="font-bold">
               {currency}
               {serviceCharge.toFixed(2)}
             </span>
@@ -330,11 +330,11 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         )}
 
         {taxAmount > 0 && (
-          <div className="flex justify-between text-gray-700">
-            <span>
+          <div className="flex justify-between">
+            <span className="font-semibold">
               {tr("Tax / GST")} ({taxRate}%)
             </span>
-            <span>
+            <span className="font-bold">
               {currency}
               {taxAmount.toFixed(2)}
             </span>
@@ -349,18 +349,18 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
           </span>
         </div>
 
-        <div className="flex justify-between text-[11px] pt-1 text-gray-800">
-          <span>{tr("Payment Mode")}:</span>
-          <span className="font-bold uppercase bg-gray-200 px-1.5 py-0.5 rounded text-black">
+        <div className="flex justify-between text-[11px] pt-1 text-black">
+          <span className="font-semibold">{tr("Payment Mode")}:</span>
+          <span className="font-bold uppercase border border-black px-1.5 py-0.5 rounded">
             {displayPayment}
           </span>
         </div>
       </div>
 
-      <div className="mt-3 pt-2 border-t border-dashed border-gray-400 text-center">
+      <div className="mt-3 pt-2 border-t border-dashed border-black text-center text-black">
         {upiPayUrl !== "" && (
-          <div className="mb-2 inline-block bg-white p-2 border border-gray-300 rounded">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-700 mb-1">
+          <div className="mb-2 inline-block bg-white p-1 border border-black rounded">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-black mb-1">
               {tr("Scan & Pay via UPI")}
             </div>
             <QRCode
@@ -374,14 +374,14 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
               {currency}
               {totalAmount.toFixed(2)}
             </div>
-            <div className="text-[9px] text-gray-600 font-mono break-all max-w-[120px] mx-auto">
+            <div className="text-[9px] text-black font-mono break-all max-w-[120px] mx-auto">
               {upiId}
             </div>
           </div>
         )}
 
         {wifiSSID && (
-          <div className="bg-gray-100 p-1.5 rounded my-1 text-[11px]">
+          <div className="border border-black p-1.5 rounded my-1 text-[11px]">
             <div className="font-bold">{tr("Free Guest Wi-Fi")}</div>
             <div>
               {tr("Network")}: <strong>{wifiSSID}</strong>
@@ -395,13 +395,13 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         )}
 
         {aboutUs && aboutUs.trim() !== "" && (
-          <div className="mt-2 pt-2 border-t border-dashed border-gray-400 text-[11px] text-black whitespace-pre-line leading-snug text-center">
+          <div className="mt-2 pt-2 border-t border-dashed border-black text-[11px] text-black whitespace-pre-line leading-snug text-center font-medium">
             {aboutUs}
           </div>
         )}
 
         {footerText && (
-          <div className="text-xs text-black font-bold my-2 pt-2 border-t border-dashed border-gray-400">
+          <div className="text-xs text-black font-bold my-2 pt-2 border-t border-dashed border-black">
             {footerText}
           </div>
         )}

@@ -12,21 +12,49 @@
   }
 }
 
-/* Thermal Printer CSS Rules */
+/* Thermal / browser print — full width, solid black ink */
 @media print {
-  html, body {
-    width: 72mm !important;
+  @page {
+    size: 80mm auto;
+    margin: 0 !important;
+  }
+
+  html,
+  body {
+    width: 80mm !important;
+    max-width: 80mm !important;
     height: fit-content !important;
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  
+
   .min-h-screen {
     min-height: 0 !important;
   }
 
-  @page {
-    margin: 0;
+  #thermal-print-section {
+    width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #thermal-print-section,
+  #thermal-print-section * {
+    color: #000 !important;
+    opacity: 1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Drop soft gray fills that wash out on thermal paper */
+  #thermal-print-section .bg-gray-100,
+  #thermal-print-section .bg-gray-200,
+  #thermal-print-section [class*="bg-gray"] {
+    background: transparent !important;
   }
 }

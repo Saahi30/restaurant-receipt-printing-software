@@ -55,11 +55,29 @@ export class EscPosBuilder {
   constructor(paperWidth: "80mm" | "58mm" = "80mm") {
     this.maxChars = paperWidth === "58mm" ? 32 : 48;
     this.init();
+    this.density();
+    this.leftMargin(0);
   }
 
   // ESC @ - Initialize printer
   init(): this {
     this.buffer.push(0x1B, 0x40);
+    return this;
+  }
+
+  /**
+   * Darker thermal print (ESC 7 — common on Xprinter / Rongta / clones).
+   * n1 = max heating dots, n2 = heating time, n3 = heating interval.
+   */
+  density(): this {
+    this.buffer.push(0x1B, 0x37, 0x07, 0xA0, 0x02);
+    return this;
+  }
+
+  /** GS L — set left margin in dots (0 = edge-to-edge). */
+  leftMargin(dots: number = 0): this {
+    const n = Math.max(0, Math.min(dots, 65535));
+    this.buffer.push(0x1D, 0x4C, n & 0xff, (n >> 8) & 0xff);
     return this;
   }
 
@@ -206,14 +224,15 @@ export function generateEscPosReceipt(data: ReceiptData): {
     builder.drawer();
   }
 
-  // Header
+  // Header — bold + double for darker name on thermal
   builder.align("center").size("double").bold(true).line(data.restaurantName);
-  builder.size("normal").bold(false);
+  builder.size("normal").bold(true);
   
   if (data.tagline) builder.line(data.tagline);
   if (data.address) builder.line(data.address);
   if (data.phone) builder.line(`${L("tel")}: ${data.phone}`);
-  if (data.gstNumber) builder.bold(true).line(data.gstNumber).bold(false);
+  if (data.gstNumber) builder.line(data.gstNumber);
+  builder.bold(false);
   
   builder.divider("=");
   
