@@ -142,6 +142,9 @@ export default function HomePage() {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Udhaar">("Cash");
   const [amountReceived, setAmountReceived] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [menuQtyDraft, setMenuQtyDraft] = useState<Record<string, string>>({});
+  const [cartQtyDraft, setCartQtyDraft] = useState<Record<string, string>>({});
+  const [pricePickerKey, setPricePickerKey] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Record<string, TableSession>>({});
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
   const [pastBills, setPastBills] = useState<any[]>([]);
@@ -398,19 +401,36 @@ export default function HomePage() {
   }, [selectedTable]);
 
   // ---- Bill actions (persisted to Supabase) ----
-  const addItem = (item: { id: string; name: string; nameHi?: string; price: number }) => {
+  const parseQty = (raw: string | undefined, fallback = 1) => {
+    const n = Math.floor(Number(raw));
+    if (!Number.isFinite(n) || n < 1) return fallback;
+    return Math.min(n, 999);
+  };
+
+  const getMenuQty = (key: string) => parseQty(menuQtyDraft[key], 1);
+
+  const setMenuQty = (key: string, value: string) => {
+    const cleaned = value.replace(/[^\d]/g, "").slice(0, 3);
+    setMenuQtyDraft((prev) => ({ ...prev, [key]: cleaned }));
+  };
+
+  const addItem = (
+    item: { id: string; name: string; nameHi?: string; price: number },
+    qty = 1
+  ) => {
     if (!selectedTable) return;
+    const addQty = Math.max(1, Math.min(Math.floor(qty) || 1, 999));
     const prev = getSession(selectedTable);
     const lines = [...prev.items];
     const idx = lines.findIndex((l) => l.id === item.id);
-    if (idx > -1) lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + 1 };
+    if (idx > -1) lines[idx] = { ...lines[idx], quantity: lines[idx].quantity + addQty };
     else
       lines.push({
         id: item.id,
         name: item.name,
         nameHi: item.nameHi || "",
         price: item.price,
-        quantity: 1,
+        quantity: addQty,
       });
     persistCart(selectedTable, {
       ...prev,
@@ -428,6 +448,26 @@ export default function HomePage() {
     const lines = prev.items
       .map((l) => (l.id === itemId ? { ...l, quantity: l.quantity + delta } : l))
       .filter((l) => l.quantity > 0);
+    persistCart(selectedTable, {
+      ...prev,
+      items: lines,
+      status: lines.length ? "ongoing" : "empty",
+      customerName,
+      paymentMethod,
+      receipt: null,
+    });
+  };
+
+  const setQty = (itemId: string, quantity: number) => {
+    if (!selectedTable) return;
+    const q = Math.floor(quantity);
+    const prev = getSession(selectedTable);
+    const lines =
+      !Number.isFinite(q) || q <= 0
+        ? prev.items.filter((l) => l.id !== itemId)
+        : prev.items.map((l) =>
+            l.id === itemId ? { ...l, quantity: Math.min(q, 999) } : l
+          );
     persistCart(selectedTable, {
       ...prev,
       items: lines,
@@ -693,6 +733,18 @@ export default function HomePage() {
 
   const fastItems = menuItems.filter(m => m.isFavorite);
   const itemsToShow = menuItems.filter(m => m.categoryId === selectedCategory);
+  const menuGroups = (() => {
+    const map = new Map<string, MenuItem[]>();
+    for (const item of itemsToShow) {
+      const key = item.name.trim().toLowerCase();
+      const list = map.get(key) || [];
+      list.push(item);
+      map.set(key, list);
+    }
+    return Array.from(map.values()).map((variants) =>
+      [...variants].sort((a, b) => a.price - b.price)
+    );
+  })();
 
   if (loading) {
     return (
@@ -896,9 +948,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col">
+    <div className={`h-screen bg-slate-100 text-slate-900 flex flex-col ${tab === "billing" ? "overflow-hidden" : "overflow-y-auto"}`}>
       {/* Header */}
-      <header className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-md print:hidden">
+      <header className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-md print:hidden shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="bg-amber-500 p-1.5 rounded-lg">
@@ -994,8 +1046,8 @@ export default function HomePage() {
       {/* ================= BILLING TAB ================= */}
       {tab === "billing" && (
         <>
-          <div className="bg-white border-b border-slate-200 px-4 py-3 print:hidden">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between gap-2 flex-wrap">
+          <div className="bg-white border-b border-slate-200 px-3 py-2 print:hidden shrink-0">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5 flex justify-between gap-2 flex-wrap">
               <span>{t("Select Table")}</span>
               <span className="normal-case font-semibold text-slate-400">
                 <span className="text-red-500">●</span> {t("empty")}{" "}
@@ -1003,7 +1055,7 @@ export default function HomePage() {
                 <span className="text-emerald-500">●</span> {t("ready")}
               </span>
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {(() => {
                 const parcel = getSession("PARCEL");
                 const qty = parcel.items.reduce((a, l) => a + l.quantity, 0);
@@ -1016,13 +1068,13 @@ export default function HomePage() {
                 return (
                   <button
                     onClick={() => setSelectedTable("PARCEL")}
-                    className={`relative px-5 py-3 rounded-xl font-bold text-sm border-2 transition-all ${color} ${
-                      selectedTable === "PARCEL" ? "shadow-lg scale-105 ring-2 ring-offset-1 ring-slate-400" : ""
+                    className={`relative px-3 py-1.5 rounded-lg font-bold text-xs border-2 transition-all ${color} ${
+                      selectedTable === "PARCEL" ? "shadow-md ring-2 ring-offset-1 ring-slate-400" : ""
                     }`}
                   >
                     {t("PARCEL (Takeaway)")}
                     {qty > 0 && (
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center bg-slate-900 text-white">
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center bg-slate-900 text-white">
                         {qty}
                       </span>
                     )}
@@ -1044,13 +1096,13 @@ export default function HomePage() {
                   <button
                     key={tbl.id}
                     onClick={() => setSelectedTable(tbl.id)}
-                    className={`relative px-5 py-3 rounded-xl font-bold text-sm border-2 transition-all ${color} ${
-                      isSel ? "shadow-lg scale-105 ring-2 ring-offset-1 ring-slate-400" : ""
+                    className={`relative px-3 py-1.5 rounded-lg font-bold text-xs border-2 transition-all ${color} ${
+                      isSel ? "shadow-md ring-2 ring-offset-1 ring-slate-400" : ""
                     }`}
                   >
                     {tbl.name}
                     {qty > 0 && (
-                      <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center bg-slate-900 text-white">
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center bg-slate-900 text-white">
                         {qty}
                       </span>
                     )}
@@ -1060,7 +1112,7 @@ export default function HomePage() {
             </div>
             
             {(selectedTable === "PARCEL" || paymentMethod === "Udhaar") && (
-              <div className="mt-3 max-w-sm">
+              <div className="mt-2 max-w-sm">
                 <input
                   type="text"
                   placeholder={
@@ -1076,7 +1128,7 @@ export default function HomePage() {
                     const prev = getSession(selectedTable);
                     persistCart(selectedTable, { ...prev, customerName: name, paymentMethod });
                   }}
-                  className={`w-full border-2 focus:ring-2 rounded-lg px-4 py-2 text-sm outline-none transition-all ${
+                  className={`w-full border-2 focus:ring-2 rounded-lg px-3 py-1.5 text-sm outline-none transition-all ${
                     paymentMethod === "Udhaar" && !customerName.trim()
                       ? "border-red-300 focus:border-red-500 focus:ring-red-200"
                       : "border-emerald-200 focus:border-emerald-500 focus:ring-emerald-200"
@@ -1086,25 +1138,25 @@ export default function HomePage() {
             )}
           </div>
 
-          <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 max-w-7xl w-full mx-auto print:hidden pb-24 lg:pb-4">
-            <section className="lg:w-2/3 flex flex-col gap-4">
+          <main className="flex-1 min-h-0 flex flex-col lg:flex-row gap-3 p-3 w-full mx-auto print:hidden pb-20 lg:pb-3">
+            <section className="lg:flex-[1.35] min-h-0 flex flex-col gap-2 overflow-y-auto">
               {/* Fast Items */}
               {fastItems.length > 0 && (
-                <div>
-                  <h2 className="text-sm font-bold text-amber-600 flex items-center gap-1 uppercase tracking-wide mb-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                <div className="shrink-0">
+                  <h2 className="text-[11px] font-bold text-amber-600 flex items-center gap-1 uppercase tracking-wide mb-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                     {t("Fast Items (Quick Add)")}
                   </h2>
-                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
                     {fastItems.map((item) => (
                       <button
                         key={`fast-${item.id}`}
                         onClick={() => addItem(item)}
                         disabled={!selectedTable}
-                        className="whitespace-nowrap px-5 py-3 rounded-xl font-bold text-base border-2 border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:border-amber-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                        className="whitespace-nowrap px-3 py-1.5 rounded-lg font-bold text-sm border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                       >
                         {localizedName(item, lang)}{" "}
-                        <span className="opacity-80 text-sm font-mono font-extrabold">
+                        <span className="opacity-80 text-xs font-mono font-extrabold">
                           ({CURRENCY} {item.price})
                         </span>
                       </button>
@@ -1115,14 +1167,17 @@ export default function HomePage() {
 
               {/* Category selector */}
               {categories.length > 0 && (
-                <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide shrink-0">
                   {categories.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => setSelectedCategory(c.id)}
-                      className={`whitespace-nowrap px-5 py-3 rounded-xl font-bold text-base border-2 transition-colors ${
+                      onClick={() => {
+                        setSelectedCategory(c.id);
+                        setPricePickerKey(null);
+                      }}
+                      className={`whitespace-nowrap px-3 py-1.5 rounded-lg font-bold text-sm border transition-colors ${
                         selectedCategory === c.id
-                          ? "bg-slate-800 border-slate-800 text-white shadow-md"
+                          ? "bg-slate-800 border-slate-800 text-white"
                           : "bg-white border-slate-200 text-slate-700 hover:border-slate-400"
                       }`}
                     >
@@ -1132,116 +1187,257 @@ export default function HomePage() {
                 </div>
               )}
 
-              <h2 className="text-base font-bold text-slate-700 tracking-wide">
+              <h2 className="text-sm font-bold text-slate-600 tracking-wide shrink-0">
                 {selectedTable ? `${t("Add Items to")} ${currentTableName}` : t("Select a table first")}
               </h2>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {itemsToShow.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => addItem(item)}
-                    disabled={!selectedTable}
-                    className="bg-white border-2 border-slate-200 hover:border-amber-400 hover:shadow-lg disabled:opacity-50 disabled:hover:border-slate-200 disabled:cursor-not-allowed rounded-2xl px-4 py-4 text-left transition-all active:scale-[0.98] flex items-center justify-between gap-3 min-h-[88px]"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-extrabold text-lg leading-snug text-slate-900">
-                        {localizedName(item, lang)}
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
+                {menuGroups.map((variants) => {
+                  const primary = variants[0];
+                  const groupKey = primary.name.trim().toLowerCase();
+                  const isMulti = variants.length > 1;
+                  const pickerOpen = pricePickerKey === groupKey;
+                  const qtyKey = groupKey;
+                  const qtyValue = menuQtyDraft[qtyKey] ?? "1";
+
+                  if (isMulti) {
+                    const minPrice = variants[0].price;
+                    return (
+                      <div
+                        key={groupKey}
+                        className={`bg-white border rounded-xl px-2.5 py-2 text-left transition-all flex flex-col gap-1.5 ${
+                          pickerOpen
+                            ? "border-amber-400 shadow-md"
+                            : "border-slate-200 hover:border-amber-400"
+                        } ${!selectedTable ? "opacity-50" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          disabled={!selectedTable}
+                          onClick={() =>
+                            setPricePickerKey((k) => (k === groupKey ? null : groupKey))
+                          }
+                          className="flex items-center justify-between gap-2 w-full text-left disabled:cursor-not-allowed"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-sm leading-snug text-slate-900 truncate">
+                              {localizedName(primary, lang)}
+                            </div>
+                            <div className="text-amber-600 font-black font-mono text-sm">
+                              {t("From")} {CURRENCY} {minPrice.toFixed(0)}
+                            </div>
+                          </div>
+                          <span className="shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center text-base font-black">
+                            {pickerOpen ? "−" : "+"}
+                          </span>
+                        </button>
+
+                        {pickerOpen && (
+                          <div className="pt-1.5 border-t border-slate-100 space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                {t("Qty")}
+                              </label>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={999}
+                                value={qtyValue}
+                                onChange={(e) => setMenuQty(qtyKey, e.target.value)}
+                                onFocus={(e) => e.target.select()}
+                                disabled={!selectedTable}
+                                className="w-12 h-7 rounded-lg border border-slate-200 text-center font-bold text-sm text-slate-900 focus:border-amber-400 focus:outline-none disabled:cursor-not-allowed"
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {variants.map((v) => (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  disabled={!selectedTable}
+                                  onClick={() => {
+                                    addItem(v, getMenuQty(qtyKey));
+                                    setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 font-black font-mono text-xs hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed"
+                                >
+                                  {CURRENCY} {v.price.toFixed(0)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-amber-600 font-black font-mono text-xl mt-1.5">
-                        {CURRENCY} {item.price.toFixed(0)}
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={primary.id}
+                      className="bg-white border border-slate-200 hover:border-amber-400 rounded-xl px-2.5 py-2 text-left transition-all flex items-center gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-sm leading-snug text-slate-900 truncate">
+                          {localizedName(primary, lang)}
+                        </div>
+                        <div className="text-amber-600 font-black font-mono text-sm">
+                          {CURRENCY} {primary.price.toFixed(0)}
+                        </div>
                       </div>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={999}
+                        value={qtyValue}
+                        onChange={(e) => setMenuQty(qtyKey, e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && selectedTable) {
+                            addItem(primary, getMenuQty(qtyKey));
+                            setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
+                          }
+                        }}
+                        disabled={!selectedTable}
+                        title={t("Qty")}
+                        className="w-10 h-8 shrink-0 rounded-lg border border-slate-200 text-center font-bold text-sm text-slate-900 focus:border-amber-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addItem(primary, getMenuQty(qtyKey));
+                          setMenuQtyDraft((prev) => ({ ...prev, [qtyKey]: "1" }));
+                        }}
+                        disabled={!selectedTable}
+                        className="shrink-0 w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Add"
+                      >
+                        <Plus className="w-4 h-4" strokeWidth={3} />
+                      </button>
                     </div>
-                    <span className="shrink-0 w-12 h-12 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-md">
-                      <Plus className="w-6 h-6" strokeWidth={3} />
-                    </span>
-                  </button>
-                ))}
+                  );
+                })}
                 
-                {itemsToShow.length === 0 && selectedCategory && (
-                  <div className="col-span-full py-8 text-center text-slate-400 font-medium">
+                {menuGroups.length === 0 && selectedCategory && (
+                  <div className="col-span-full py-6 text-center text-slate-400 font-medium text-sm">
                     No items found in this category.
                   </div>
                 )}
                 {categories.length === 0 && (
-                  <div className="col-span-full py-8 text-center text-slate-400 font-medium">
+                  <div className="col-span-full py-6 text-center text-slate-400 font-medium text-sm">
                     Please go to Admin to add categories and menu items.
                   </div>
                 )}
               </div>
             </section>
 
-            <section className={`lg:w-1/3 ${isMobileCartOpen ? 'fixed inset-0 z-50 bg-black/60 flex flex-col justify-end p-0 sm:p-4 pb-0' : 'hidden lg:block'}`}>
-              <div className="bg-white rounded-t-3xl lg:rounded-2xl border border-slate-200 shadow-2xl lg:shadow-sm flex flex-col overflow-hidden h-[92vh] sm:h-[85vh] lg:h-[calc(100vh-280px)] lg:min-h-[500px] lg:sticky lg:top-4 mt-auto w-full max-w-lg mx-auto lg:max-w-none">
-                <div className="px-4 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                  <h2 className="font-extrabold text-xl text-slate-800 flex items-center gap-2">
-                    <Receipt className="w-6 h-6 text-amber-500" />
+            <section className={`lg:w-[380px] xl:w-[400px] shrink-0 min-h-0 ${isMobileCartOpen ? 'fixed inset-0 z-50 bg-black/60 flex flex-col justify-end p-0 sm:p-4 pb-0' : 'hidden lg:flex lg:flex-col'}`}>
+              <div className="bg-white rounded-t-2xl lg:rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[90vh] sm:h-[85vh] lg:h-full min-h-0 mt-auto w-full max-w-lg mx-auto lg:max-w-none">
+                <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                  <h2 className="font-extrabold text-base text-slate-800 flex items-center gap-1.5">
+                    <Receipt className="w-4 h-4 text-amber-500" />
                     Bill — {currentTableName}
+                    {currentBill.length > 0 && (
+                      <span className="ml-1 text-xs font-bold text-slate-400">
+                        ({currentBill.reduce((a, l) => a + l.quantity, 0)})
+                      </span>
+                    )}
                   </h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {currentBill.length > 0 && (
                       <button
                         onClick={clearBill}
-                        className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1 font-bold bg-red-50 px-3 py-1.5 rounded-lg"
+                        className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 font-bold bg-red-50 px-2 py-1 rounded-md"
                       >
-                        <Trash2 className="w-4 h-4" /> Clear
+                        <Trash2 className="w-3.5 h-3.5" /> Clear
                       </button>
                     )}
                     {isMobileCartOpen && (
-                      <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-full w-10 h-10 flex items-center justify-center shadow-sm text-lg font-bold">
+                      <button onClick={() => setIsMobileCartOpen(false)} className="lg:hidden text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-full w-8 h-8 flex items-center justify-center shadow-sm text-base font-bold">
                         ✕
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="flex-1 p-3 overflow-y-auto bg-slate-100">
+                <div className="flex-1 min-h-0 p-2 overflow-y-auto bg-slate-50">
                   {currentBill.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
-                      <Receipt className="w-12 h-12 mb-2 stroke-1 opacity-50" />
-                      <p className="text-base font-semibold">No items yet</p>
-                      <p className="text-sm mt-1">Tap a menu item to add it</p>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-6">
+                      <Receipt className="w-8 h-8 mb-1.5 stroke-1 opacity-50" />
+                      <p className="text-sm font-semibold">No items yet</p>
+                      <p className="text-xs mt-0.5">Tap a menu item to add it</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-1.5">
                       {currentBill.map((line) => (
                         <div
                           key={line.id}
-                          className="flex flex-col bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 shadow-sm"
+                          className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5"
                         >
-                          <div className="flex justify-between items-start gap-3 mb-3">
-                            <div className="font-extrabold text-lg leading-snug text-slate-900 pr-1 min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-sm leading-snug text-slate-900 truncate">
                               {localizedName(line, lang)}
                             </div>
-                            <div className="font-black font-mono text-lg text-amber-600 whitespace-nowrap shrink-0">
-                              {CURRENCY} {(line.price * line.quantity).toFixed(0)}
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {CURRENCY} {line.price.toFixed(0)} × {line.quantity} ={" "}
+                              <span className="font-bold text-amber-600">
+                                {CURRENCY} {(line.price * line.quantity).toFixed(0)}
+                              </span>
                             </div>
                           </div>
 
-                          <div className="flex justify-between items-center">
-                            <div className="text-sm text-slate-500 font-mono font-semibold">
-                              {CURRENCY} {line.price.toFixed(0)} × {line.quantity}
-                            </div>
-
-                            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl p-1">
-                              <button
-                                onClick={() => changeQty(line.id, -1)}
-                                className="w-11 h-11 rounded-xl bg-white hover:bg-slate-50 shadow-sm flex items-center justify-center text-slate-700 active:scale-95"
-                                aria-label="Decrease"
-                              >
-                                <Minus className="w-5 h-5" strokeWidth={2.5} />
-                              </button>
-                              <span className="w-10 text-center font-black text-xl text-slate-900 tabular-nums">
-                                {line.quantity}
-                              </span>
-                              <button
-                                onClick={() => changeQty(line.id, 1)}
-                                className="w-11 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 shadow-sm flex items-center justify-center text-white active:scale-95"
-                                aria-label="Increase"
-                              >
-                                <Plus className="w-5 h-5" strokeWidth={2.5} />
-                              </button>
-                            </div>
+                          <div className="flex items-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0">
+                            <button
+                              onClick={() => {
+                                setCartQtyDraft((prev) => {
+                                  const next = { ...prev };
+                                  delete next[line.id];
+                                  return next;
+                                });
+                                changeQty(line.id, -1);
+                              }}
+                              className="w-7 h-7 rounded-md bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 active:scale-95"
+                              aria-label="Decrease"
+                            >
+                              <Minus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                            </button>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={cartQtyDraft[line.id] ?? String(line.quantity)}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/[^\d]/g, "").slice(0, 3);
+                                setCartQtyDraft((prev) => ({ ...prev, [line.id]: raw }));
+                                if (raw !== "") setQty(line.id, Number(raw));
+                              }}
+                              onBlur={() => {
+                                const draft = cartQtyDraft[line.id];
+                                setCartQtyDraft((prev) => {
+                                  const next = { ...prev };
+                                  delete next[line.id];
+                                  return next;
+                                });
+                                if (draft === "" || Number(draft) < 1) setQty(line.id, 1);
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              className="w-8 h-7 text-center font-black text-sm text-slate-900 tabular-nums bg-transparent border-0 focus:outline-none focus:ring-0"
+                              aria-label="Quantity"
+                            />
+                            <button
+                              onClick={() => {
+                                setCartQtyDraft((prev) => {
+                                  const next = { ...prev };
+                                  delete next[line.id];
+                                  return next;
+                                });
+                                changeQty(line.id, 1);
+                              }}
+                              className="w-7 h-7 rounded-md bg-amber-500 hover:bg-amber-600 flex items-center justify-center text-white active:scale-95"
+                              aria-label="Increase"
+                            >
+                              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1249,66 +1445,59 @@ export default function HomePage() {
                   )}
                 </div>
 
-                <div className="border-t border-slate-200 p-4 space-y-1.5 text-sm bg-white">
-                  <div className="flex justify-between text-slate-600">
-                    <span>{t("Subtotal")}</span>
-                    <span className="font-mono">
-                      {CURRENCY} {subtotal.toFixed(2)}
-                    </span>
-                  </div>
+                <div className="border-t border-slate-200 px-3 py-2 space-y-1.5 text-sm bg-white shrink-0">
                   {TAX_RATE > 0 && (
-                    <div className="flex justify-between text-slate-600">
+                    <div className="flex justify-between text-slate-500 text-xs">
+                      <span>{t("Subtotal")}</span>
+                      <span className="font-mono">
+                        {CURRENCY} {subtotal.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {TAX_RATE > 0 && (
+                    <div className="flex justify-between text-slate-500 text-xs">
                       <span>Tax ({TAX_RATE}%)</span>
                       <span className="font-mono">
                         {CURRENCY} {taxAmount.toFixed(2)}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between items-baseline pt-2 border-t border-slate-100 mt-1">
-                    <span className="font-bold text-base text-slate-800">{t("TOTAL")}</span>
-                    <span className="font-extrabold font-mono text-2xl text-amber-600">
+                  <div className="flex justify-between items-baseline">
+                    <span className="font-bold text-sm text-slate-800">{t("TOTAL")}</span>
+                    <span className="font-extrabold font-mono text-xl text-amber-600">
                       {CURRENCY} {total.toFixed(2)}
                     </span>
                   </div>
                   
-                  {/* Payment Method Selector */}
-                  <div className="pt-3 pb-1 border-t border-slate-100 mt-2">
-                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t("Payment Method")}</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {["Cash", "UPI", "Udhaar"].map((pmLabel) => (
-                        <button
-                          key={pmLabel}
-                          onClick={() => {
-                            const pm = pmLabel as "Cash" | "UPI" | "Udhaar";
-                            setPaymentMethod(pm);
-                            if (pm !== "Cash") setAmountReceived("");
-                            if (!selectedTable) return;
-                            const prev = getSession(selectedTable);
-                            persistCart(selectedTable, { ...prev, paymentMethod: pm, customerName });
-                          }}
-                          className={`py-1.5 rounded-lg text-sm font-bold border transition-colors ${
-                            paymentMethod === pmLabel
-                              ? pmLabel === "Udhaar"
-                                ? "bg-red-50 border-red-500 text-red-700"
-                                : "bg-slate-800 border-slate-800 text-white"
-                              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                          }`}
-                        >
-                          {t(pmLabel)}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {["Cash", "UPI", "Udhaar"].map((pmLabel) => (
+                      <button
+                        key={pmLabel}
+                        onClick={() => {
+                          const pm = pmLabel as "Cash" | "UPI" | "Udhaar";
+                          setPaymentMethod(pm);
+                          if (pm !== "Cash") setAmountReceived("");
+                          if (!selectedTable) return;
+                          const prev = getSession(selectedTable);
+                          persistCart(selectedTable, { ...prev, paymentMethod: pm, customerName });
+                        }}
+                        className={`py-1 rounded-md text-xs font-bold border transition-colors ${
+                          paymentMethod === pmLabel
+                            ? pmLabel === "Udhaar"
+                              ? "bg-red-50 border-red-500 text-red-700"
+                              : "bg-slate-800 border-slate-800 text-white"
+                            : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        {t(pmLabel)}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Cash tender — biller reference only (logged, never printed) */}
                   {paymentMethod === "Cash" && currentBill.length > 0 && (
-                    <div className="pt-3 mt-2 border-t border-slate-100 space-y-2">
-                      <span className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
-                        Amount Received
-                        <span className="ml-1.5 font-medium normal-case text-slate-400">(not on bill)</span>
-                      </span>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-mono pointer-events-none">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono pointer-events-none">
                           {CURRENCY}
                         </span>
                         <input
@@ -1318,59 +1507,47 @@ export default function HomePage() {
                           inputMode="decimal"
                           value={amountReceived}
                           onChange={(e) => setAmountReceived(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                          placeholder="Received"
+                          className="w-full pl-8 pr-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-mono font-bold text-sm focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
                         />
                       </div>
                       {changeReturn !== null && (
                         <div
-                          className={`flex justify-between items-center rounded-xl px-3 py-2.5 ${
+                          className={`shrink-0 rounded-lg px-2 py-1.5 text-xs font-bold font-mono ${
                             changeReturn >= 0
-                              ? "bg-emerald-50 border border-emerald-200"
-                              : "bg-red-50 border border-red-200"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-red-50 text-red-700 border border-red-200"
                           }`}
                         >
-                          <span
-                            className={`text-sm font-bold ${
-                              changeReturn >= 0 ? "text-emerald-700" : "text-red-700"
-                            }`}
-                          >
-                            {changeReturn >= 0 ? t("Return / Change") : t("Short by")}
-                          </span>
-                          <span
-                            className={`font-extrabold font-mono text-xl ${
-                              changeReturn >= 0 ? "text-emerald-700" : "text-red-700"
-                            }`}
-                          >
-                            {CURRENCY} {Math.abs(changeReturn).toFixed(2)}
-                          </span>
+                          {changeReturn >= 0 ? "Chg" : "Short"} {CURRENCY} {Math.abs(changeReturn).toFixed(0)}
                         </div>
                       )}
                     </div>
                   )}
-                </div>
 
-                <div className="p-4 pt-0 space-y-2 bg-white border-t border-slate-100 mt-auto">
-                  <button
-                    onClick={() => setShowPreviewModal(true)}
-                    disabled={currentBill.length === 0}
-                    className="w-full bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-40 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors mb-2"
-                  >
-                    <Eye className="w-4 h-4" /> {t("Preview Receipt")}
-                  </button>
+                  <div className="flex gap-1.5 pt-0.5">
+                    <button
+                      onClick={() => setShowPreviewModal(true)}
+                      disabled={currentBill.length === 0}
+                      className="shrink-0 px-3 bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-40 font-semibold py-2 rounded-lg text-sm flex items-center justify-center gap-1 transition-colors"
+                      title={t("Preview Receipt")}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
 
-                  <button
-                    onClick={makeBill}
-                    disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim())}
-                    className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-                  >
-                    {isPrinting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
-                    {isPrinting
-                      ? t("Printing...")
-                      : paymentMethod === "Udhaar" && !customerName.trim()
-                      ? t("Enter Name for Udhaar")
-                      : t("Print Bill")}
-                  </button>
+                    <button
+                      onClick={makeBill}
+                      disabled={currentBill.length === 0 || isPrinting || (paymentMethod === "Udhaar" && !customerName.trim())}
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                    >
+                      {isPrinting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                      {isPrinting
+                        ? t("Printing...")
+                        : paymentMethod === "Udhaar" && !customerName.trim()
+                        ? t("Enter Name for Udhaar")
+                        : t("Print Bill")}
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>

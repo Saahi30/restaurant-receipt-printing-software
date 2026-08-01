@@ -74,6 +74,9 @@ export const translations: Record<string, Record<Language, string>> = {
   "Fast Items (Quick Add)": { en: "Fast Items (Quick Add)", hi: "फ़ास्ट आइटम (जल्दी जोड़ें)" },
   "Select a table first": { en: "Select a table first", hi: "पहले टेबल चुनें" },
   "Add Items to": { en: "Add Items to", hi: "आइटम जोड़ें —" },
+  "Select price": { en: "Select price", hi: "कीमत चुनें" },
+  "Qty": { en: "Qty", hi: "मात्रा" },
+  "From": { en: "From", hi: "से" },
   "Current Bill": { en: "Current Bill", hi: "वर्तमान बिल" },
   "Select a table first to start billing": {
     en: "Select a table first to start billing",
