@@ -259,7 +259,7 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-3 text-slate-600">
         <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
-        <p className="font-semibold">{!isAuthorized ? "Checking authorization..." : "Loading Admin..."}</p>
+        <p className="font-semibold">{!isAuthorized ? t("Checking authorization...") : t("Loading Admin...")}</p>
       </div>
     );
   }
@@ -269,7 +269,7 @@ export default function AdminPage() {
       <header className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shadow-md print:hidden">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-slate-300 hover:text-white flex items-center gap-1 font-semibold text-sm">
-            <ArrowLeft className="w-4 h-4" /> Back to POS
+            <ArrowLeft className="w-4 h-4" /> {t("Back to POS")}
           </Link>
           <h1 className="font-bold text-lg leading-tight text-amber-500">{t("Admin Dashboard")}</h1>
         </div>
@@ -283,7 +283,7 @@ export default function AdminPage() {
             className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all"
           >
             {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
+            {saving ? t("Saving...") : saved ? t("Saved!") : t("Save Changes")}
           </button>
         </div>
       </header>
@@ -325,15 +325,15 @@ export default function AdminPage() {
             </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {tables.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
+            {tables.map((tbl) => (
+              <div key={tbl.id} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
                 <input
-                  value={t.name}
-                  onChange={(e) => updateTable(t.id, e.target.value)}
+                  value={tbl.name}
+                  onChange={(e) => updateTable(tbl.id, e.target.value)}
                   className="w-full bg-transparent border-none outline-none font-semibold text-sm"
-                  placeholder="Table Name"
+                  placeholder={t("Table Name")}
                 />
-                <button onClick={() => deleteTable(t.id)} className="text-red-500 hover:text-red-700">
+                <button onClick={() => deleteTable(tbl.id)} className="text-red-500 hover:text-red-700">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
@@ -360,7 +360,7 @@ export default function AdminPage() {
                   value={c.name}
                   onChange={(e) => updateCategory(c.id, e.target.value)}
                   className="w-full bg-transparent border-none outline-none font-semibold text-sm"
-                  placeholder="Category Name"
+                  placeholder={t("Category Name")}
                 />
                 <button onClick={() => deleteCategory(c.id)} className="text-red-500 hover:text-red-700">
                   <Trash2 className="w-4 h-4" />
@@ -389,7 +389,7 @@ export default function AdminPage() {
                   value={m.name}
                   onChange={(e) => updateMenuItem(m.id, "name", e.target.value)}
                   className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm font-semibold"
-                  placeholder="Item Name"
+                  placeholder={t("Item Name")}
                 />
                 <select
                   value={m.categoryId}
@@ -414,7 +414,7 @@ export default function AdminPage() {
                   <button 
                     onClick={() => toggleFavorite(m.id)} 
                     className={`p-1.5 rounded-md transition-colors ${m.isFavorite ? "text-amber-500 bg-amber-50 hover:bg-amber-100" : "text-slate-400 hover:bg-slate-200"}`}
-                    title={m.isFavorite ? "Remove from Fast Items" : "Add to Fast Items"}
+                    title={m.isFavorite ? t("Remove from Fast Items") : t("Add to Fast Items")}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={m.isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                   </button>
@@ -424,19 +424,19 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
-            {menuItems.length === 0 && <p className="text-sm text-slate-500">No menu items added yet.</p>}
+            {menuItems.length === 0 && <p className="text-sm text-slate-500">{t("No menu items added yet.")}</p>}
           </div>
         </section>
 
         {/* Users Section */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h2 className="font-bold text-lg text-slate-800">User Management</h2>
+            <h2 className="font-bold text-lg text-slate-800">{t("User Management")}</h2>
             <button
               onClick={addUser}
               className="text-amber-600 hover:text-amber-700 font-semibold text-sm flex items-center gap-1"
             >
-              <Plus className="w-4 h-4" /> Add User
+              <Plus className="w-4 h-4" /> {t("Add User")}
             </button>
           </div>
           <div className="space-y-3">
@@ -453,13 +453,13 @@ export default function AdminPage() {
                   value={u.username}
                   onChange={(e) => updateUser(u.id, "username", e.target.value)}
                   className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm font-semibold"
-                  placeholder="Username"
+                  placeholder={t("Username")}
                 />
                 <input
                   value={u.password || ""}
                   onChange={(e) => updateUser(u.id, "password", e.target.value)}
                   className="flex-1 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm"
-                  placeholder={u.role === "admin" || u.role === "laptop" ? t("Password") : "Password (admin/laptop only)"}
+                  placeholder={u.role === "admin" || u.role === "laptop" ? t("Password") : t("Password (admin/laptop only)")}
                   type="text"
                   disabled={u.role !== "admin" && u.role !== "laptop"}
                 />
@@ -468,24 +468,24 @@ export default function AdminPage() {
                   onChange={(e) => updateUser(u.id, "role", e.target.value)}
                   className="w-full sm:w-1/4 bg-white border border-slate-200 rounded px-2 py-1 outline-none text-sm font-semibold"
                 >
-                  <option value="admin">Admin</option>
-                  <option value="owner">Owner</option>
-                  <option value="waiter">Waiter</option>
-                  <option value="laptop">Laptop</option>
+                  <option value="admin">{t("Admin")}</option>
+                  <option value="owner">{t("Owner")}</option>
+                  <option value="waiter">{t("Waiter")}</option>
+                  <option value="laptop">{t("Laptop")}</option>
                 </select>
                 <button 
                   onClick={() => deleteUser(u.id)} 
                   disabled={users.filter((x) => x.role === "admin").length <= 1 && u.role === "admin"}
                   className="text-red-500 hover:text-red-700 w-full sm:w-auto text-right disabled:opacity-30 disabled:cursor-not-allowed"
-                  title={u.role === "admin" ? "Cannot delete the last admin" : "Delete user"}
+                  title={u.role === "admin" ? t("Cannot delete the last admin") : t("Delete user")}
                 >
                   <Trash2 className="w-4 h-4 inline" />
                 </button>
               </div>
             ))}
-            {users.length === 0 && <p className="text-sm text-slate-500">No users added yet.</p>}
+            {users.length === 0 && <p className="text-sm text-slate-500">{t("No users added yet.")}</p>}
             <p className="text-xs text-slate-500">
-              Owner: bills + past bills. Laptop: print station (password 8855). Only Admin opens full Admin.
+              {t("Owner: bills + past bills. Laptop: print station (password 8855). Only Admin opens full Admin.")}
             </p>
           </div>
         </section>
@@ -503,10 +503,10 @@ export default function AdminPage() {
                       dateFilter === filter ? "bg-slate-800 text-white shadow" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                     }`}
                   >
-                    {filter === "today" && "Today"}
-                    {filter === "7days" && "Last 7 Days"}
-                    {filter === "month" && "This Month"}
-                    {filter === "all" && "All Time"}
+                    {filter === "today" && t("Today")}
+                    {filter === "7days" && t("Last 7 Days")}
+                    {filter === "month" && t("This Month")}
+                    {filter === "all" && t("All Time")}
                   </button>
                 ))}
               </div>
@@ -517,7 +517,7 @@ export default function AdminPage() {
                 }}
                 className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-colors"
               >
-                <Printer className="w-4 h-4" /> Print Report
+                <Printer className="w-4 h-4" /> {t("Print Report")}
               </button>
             </div>
 
@@ -569,7 +569,7 @@ export default function AdminPage() {
                    className="text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg font-semibold text-sm hover:bg-emerald-200 transition-colors flex items-center gap-1"
                 >
                    {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                   {saving ? "Saving..." : saved ? "Saved!" : "Save Drawer"}
+                   {saving ? t("Saving...") : saved ? t("Saved!") : t("Save Drawer")}
                 </button>
               </div>
               <div className="p-5 flex flex-col md:flex-row gap-8">
@@ -611,14 +611,14 @@ export default function AdminPage() {
                   <div className="flex gap-2 print:hidden">
                     <input
                       type="text"
-                      placeholder="e.g., Milk, Vegetables..."
+                      placeholder={t("e.g., Milk, Vegetables...")}
                       value={newExpenseDesc}
                       onChange={(e) => setNewExpenseDesc(e.target.value)}
                       className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                     />
                     <input
                       type="number"
-                      placeholder="Amount"
+                      placeholder={t("Amount")}
                       value={newExpenseAmount}
                       onChange={(e) => setNewExpenseAmount(e.target.value)}
                       className="w-24 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 font-mono"
@@ -661,7 +661,7 @@ export default function AdminPage() {
                         {filteredExpenses.length === 0 && (
                           <tr>
                             <td colSpan={3} className="p-6 text-center text-slate-400 font-medium text-sm">
-                              No expenses recorded for this period.
+                              {t("No expenses recorded for this period.")}
                             </td>
                           </tr>
                         )}
@@ -745,7 +745,7 @@ export default function AdminPage() {
                     {filteredBills.length === 0 && (
                       <tr>
                         <td colSpan={8} className="p-8 text-center text-slate-400 font-medium text-sm">
-                          No bills found for the selected time period.
+                          {t("No bills found for the selected time period.")}
                         </td>
                       </tr>
                     )}

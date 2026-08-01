@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
+import { useTranslation } from "@/lib/i18n";
 
 type BillLine = { id: string; name: string; price: number; quantity: number };
 type Table = { id: string; name: string };
@@ -59,7 +60,7 @@ const statusColor: Record<SessionStatus, string> = {
   ready: "bg-emerald-500 border-emerald-600 text-white",
 };
 
-const statusLabel: Record<SessionStatus, string> = {
+const statusLabelKey: Record<SessionStatus, string> = {
   empty: "Empty",
   ongoing: "Ongoing",
   ready: "Bill Ready",
@@ -73,6 +74,7 @@ export function LaptopBoard({
   currentUser,
   onLogout,
 }: Props) {
+  const { t, lang, toggleLang } = useTranslation();
   const [sessions, setSessions] = useState<Record<string, TableSession>>({});
   const [stationReady, setStationReady] = useState(false);
   const [printerConnected, setPrinterConnected] = useState(false);
@@ -311,7 +313,7 @@ export function LaptopBoard({
       body: JSON.stringify(data),
     });
     await persistSession(getSession(tableId), { clear: true, items: [] });
-    setToast("Printed & cleared");
+    setToast(t("Printed & cleared"));
     setTimeout(() => setToast(""), 2000);
   };
 
@@ -379,7 +381,7 @@ export function LaptopBoard({
     try {
       const data = buildReceipt(selected, selectedName);
       await persistSession(selected, { markReady: true, receipt: data, items: selected.items });
-      setToast("Marked ready (green)");
+      setToast(t("Marked ready (green)"));
       setTimeout(() => setToast(""), 2000);
       setSelectedId(null);
     } catch (err: any) {
@@ -412,7 +414,7 @@ export function LaptopBoard({
       <header className="px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div>
           <h1 className="font-bold text-xl">{settings.restaurantName}</h1>
-          <p className="text-xs text-slate-400">Laptop Print Station</p>
+          <p className="text-xs text-slate-400">{t("Laptop Print Station")}</p>
         </div>
         <div className="flex items-center gap-3">
           <div
@@ -422,7 +424,7 @@ export function LaptopBoard({
                 : "bg-red-500/20 text-red-300 border-red-500/40"
             }`}
           >
-            {stationReady ? "Online for phones" : "Not ready for phones"}
+            {stationReady ? t("Online for phones") : t("Not ready for phones")}
           </div>
           <div
             className={`hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold ${
@@ -432,22 +434,25 @@ export function LaptopBoard({
             }`}
           >
             {printerConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-            {printerStatus}
+            {t(printerStatus)}
           </div>
           {printerConnected ? (
             <button onClick={disconnectPrinter} className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
-              <Usb className="w-4 h-4" /> Disconnect
+              <Usb className="w-4 h-4" /> {t("Disconnect")}
             </button>
           ) : (
             <button onClick={connectPrinter} className="bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
-              <Usb className="w-4 h-4" /> Detect Printer
+              <Usb className="w-4 h-4" /> {t("Detect Printer")}
             </button>
           )}
           <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
             <UserAvatar name={currentUser.username} avatar={currentUser.avatar} size="sm" />
             <span className="text-sm text-slate-300">{currentUser.username}</span>
+            <button onClick={toggleLang} className="bg-slate-800 hover:bg-slate-700 text-xs px-2 py-1 rounded">
+              {lang === "en" ? "अ" : "EN"}
+            </button>
             <button onClick={onLogout} className="text-xs underline text-slate-400 hover:text-white">
-              Logout
+              {t("Logout")}
             </button>
           </div>
         </div>
@@ -467,12 +472,12 @@ export function LaptopBoard({
       <main className="flex-1 p-4 print:hidden">
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-3 text-xs font-semibold">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500" /> Empty</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400" /> Ongoing</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> Bill Ready — click to print</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500" /> {t("Empty")}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-400" /> {t("Ongoing")}</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> {t("Bill Ready — click to print")}</span>
           </div>
           <button onClick={loadSessions} className="text-slate-400 hover:text-white text-sm flex items-center gap-1">
-            <RefreshCw className="w-4 h-4" /> Refresh
+            <RefreshCw className="w-4 h-4" /> {t("Refresh")}
           </button>
         </div>
 
@@ -490,12 +495,12 @@ export function LaptopBoard({
                   selectedId === tbl.id ? "ring-4 ring-white/40" : ""
                 }`}
               >
-                <div className="text-xs font-bold uppercase tracking-wide opacity-80">{statusLabel[s.status]}</div>
+                <div className="text-xs font-bold uppercase tracking-wide opacity-80">{t(statusLabelKey[s.status])}</div>
                 <div className="text-2xl font-black mt-1">{tbl.name}</div>
-                {qty > 0 && <div className="mt-2 text-sm font-semibold opacity-90">{qty} items</div>}
+                {qty > 0 && <div className="mt-2 text-sm font-semibold opacity-90">{qty} {t("items")}</div>}
                 {s.status === "ready" && (
                   <div className="mt-3 inline-flex items-center gap-1 text-sm font-bold bg-black/20 px-2 py-1 rounded-lg">
-                    <Printer className="w-4 h-4" /> Print
+                    <Printer className="w-4 h-4" /> {t("Print")}
                   </div>
                 )}
               </button>
@@ -510,7 +515,7 @@ export function LaptopBoard({
             <div className="p-4 border-b border-slate-700 flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-lg">{selectedName}</h2>
-                <p className="text-xs text-slate-400">{statusLabel[selected.status]} — edit or print</p>
+                <p className="text-xs text-slate-400">{t(statusLabelKey[selected.status])} — {t("edit or print")}</p>
               </div>
               <button onClick={() => setSelectedId(null)} className="p-2 hover:bg-slate-800 rounded-lg">
                 <X className="w-5 h-5" />
@@ -519,21 +524,21 @@ export function LaptopBoard({
 
             {selectedId === "PARCEL" && (
               <div className="p-4 border-b border-slate-800">
-                <label className="text-xs font-bold text-slate-400">Customer Name</label>
+                <label className="text-xs font-bold text-slate-400">{t("Customer Name")}</label>
                 <input
                   value={selected.customerName}
                   onChange={(e) =>
                     schedulePersist({ ...selected, customerName: e.target.value })
                   }
                   className="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                  placeholder="Customer name"
+                  placeholder={t("Customer name")}
                 />
               </div>
             )}
 
             <div className="p-4 border-b border-slate-800 space-y-2">
               {selected.items.length === 0 && (
-                <p className="text-sm text-slate-500">No items yet. Add from menu below.</p>
+                <p className="text-sm text-slate-500">{t("No items yet. Add from menu below.")}</p>
               )}
               {selected.items.map((l) => (
                 <div key={l.id} className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2">
@@ -594,7 +599,7 @@ export function LaptopBoard({
                 disabled={selected.items.length === 0 || isPrinting}
                 className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 font-bold py-3 rounded-xl"
               >
-                Generate Bill
+                {t("Generate Bill")}
               </button>
               <button
                 onClick={printNow}
@@ -602,7 +607,7 @@ export function LaptopBoard({
                 className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-900 font-bold py-3 rounded-xl flex items-center justify-center gap-2"
               >
                 {isPrinting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                Print Bill
+                {t("Print Bill")}
               </button>
             </div>
           </div>

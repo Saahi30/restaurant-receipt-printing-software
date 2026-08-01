@@ -283,7 +283,7 @@ export default function HomePage() {
     if (user && (user.role === "admin" || user.role === "laptop")) {
       completePasswordLogin(user);
     } else {
-      setLoginError("Invalid password");
+      setLoginError(t("Invalid password"));
     }
   };
 
@@ -568,21 +568,21 @@ export default function HomePage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (json.code === "STATION_OFFLINE" || /connect laptop/i.test(json.error || "")) {
-          setBillStatusMsg("Connect laptop");
-          setPrinterError("Connect laptop — open the Laptop account on the PC and connect the printer.");
+          setBillStatusMsg(t("Connect laptop"));
+          setPrinterError(t("Connect laptop — open the Laptop account on the PC and connect the printer."));
         } else {
-          setPrinterError(json.error || "Could not send bill to laptop");
+          setPrinterError(json.error || t("Could not send bill to laptop"));
         }
         return;
       }
       if (json.session) {
         setSessions((prev) => ({ ...prev, [json.session.tableId]: json.session }));
       }
-      setBillStatusMsg("Sent to laptop");
+      setBillStatusMsg(t("Sent to laptop"));
       setAmountReceived("");
       setTimeout(() => setBillStatusMsg(""), 2500);
     } catch (err: any) {
-      setPrinterError(err.message || "Could not send bill to laptop");
+      setPrinterError(err.message || t("Could not send bill to laptop"));
     } finally {
       setIsPrinting(false);
     }
@@ -673,7 +673,7 @@ export default function HomePage() {
             <div className="max-w-sm mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-slate-800">
-                  {selectedUserForLogin.role === "laptop" ? "Laptop Login" : "Admin Login"}: {selectedUserForLogin.username}
+                  {selectedUserForLogin.role === "laptop" ? t("Laptop Login") : t("Admin Login")}: {selectedUserForLogin.username}
                 </h2>
                 <button 
                   onClick={() => setSelectedUserForLogin(null)}
@@ -838,7 +838,7 @@ export default function HomePage() {
             </div>
             <div>
               <h1 className="font-bold text-lg leading-tight">{settings.restaurantName}</h1>
-              <p className="text-xs text-slate-400">Billing & Thermal Printing</p>
+              <p className="text-xs text-slate-400">{t("Billing & Thermal Printing")}</p>
             </div>
           </div>
           
@@ -903,7 +903,7 @@ export default function HomePage() {
             }`}
           >
             <WifiOff className="w-3.5 h-3.5" />
-            <span>Print via Laptop</span>
+            <span>{t("Print via Laptop")}</span>
           </div>
         </div>
       </header>
@@ -928,9 +928,9 @@ export default function HomePage() {
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 flex justify-between gap-2 flex-wrap">
               <span>{t("Select Table")}</span>
               <span className="normal-case font-semibold text-slate-400">
-                <span className="text-red-500">●</span> empty{" "}
-                <span className="text-amber-500">●</span> ongoing{" "}
-                <span className="text-emerald-500">●</span> ready
+                <span className="text-red-500">●</span> {t("empty")}{" "}
+                <span className="text-amber-500">●</span> {t("ongoing")}{" "}
+                <span className="text-emerald-500">●</span> {t("ready")}
               </span>
             </p>
             <div className="flex flex-wrap gap-2">
@@ -950,7 +950,7 @@ export default function HomePage() {
                       selectedTable === "PARCEL" ? "shadow-lg scale-105 ring-2 ring-offset-1 ring-slate-400" : ""
                     }`}
                   >
-                    PARCEL (Takeaway)
+                    {t("PARCEL (Takeaway)")}
                     {qty > 0 && (
                       <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center bg-slate-900 text-white">
                         {qty}
@@ -993,7 +993,11 @@ export default function HomePage() {
               <div className="mt-3 max-w-sm">
                 <input
                   type="text"
-                  placeholder={paymentMethod === "Udhaar" ? "Customer Name (Required for Udhaar)" : "Customer Name (Optional)"}
+                  placeholder={
+                    paymentMethod === "Udhaar"
+                      ? t("Customer Name (Required for Udhaar)")
+                      : t("Customer Name (Optional)")
+                  }
                   value={customerName}
                   onChange={(e) => {
                     const name = e.target.value;
@@ -1019,7 +1023,7 @@ export default function HomePage() {
                 <div>
                   <h2 className="text-sm font-bold text-amber-600 flex items-center gap-1 uppercase tracking-wide mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                    Fast Items (Quick Add)
+                    {t("Fast Items (Quick Add)")}
                   </h2>
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                     {fastItems.map((item) => (
@@ -1056,7 +1060,7 @@ export default function HomePage() {
               )}
 
               <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide">
-                {selectedTable ? `Add Items to ${currentTableName}` : "Select a table first"}
+                {selectedTable ? `${t("Add Items to")} ${currentTableName}` : t("Select a table first")}
               </h2>
               
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -1179,7 +1183,7 @@ export default function HomePage() {
                     </div>
                   )}
                   <div className="flex justify-between items-baseline pt-2 border-t border-slate-100 mt-1">
-                    <span className="font-bold text-base text-slate-800">TOTAL</span>
+                    <span className="font-bold text-base text-slate-800">{t("TOTAL")}</span>
                     <span className="font-extrabold font-mono text-2xl text-amber-600">
                       {CURRENCY} {total.toFixed(2)}
                     </span>
@@ -1187,7 +1191,7 @@ export default function HomePage() {
                   
                   {/* Payment Method Selector */}
                   <div className="pt-3 pb-1 border-t border-slate-100 mt-2">
-                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Payment Method</span>
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">{t("Payment Method")}</span>
                     <div className="grid grid-cols-3 gap-2">
                       {["Cash", "UPI", "Udhaar"].map((pmLabel) => (
                         <button
@@ -1208,7 +1212,7 @@ export default function HomePage() {
                               : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                           }`}
                         >
-                          {pmLabel}
+                          {t(pmLabel)}
                         </button>
                       ))}
                     </div>
@@ -1249,7 +1253,7 @@ export default function HomePage() {
                               changeReturn >= 0 ? "text-emerald-700" : "text-red-700"
                             }`}
                           >
-                            {changeReturn >= 0 ? "Return / Change" : "Short by"}
+                            {changeReturn >= 0 ? t("Return / Change") : t("Short by")}
                           </span>
                           <span
                             className={`font-extrabold font-mono text-xl ${
@@ -1270,7 +1274,7 @@ export default function HomePage() {
                     disabled={currentBill.length === 0}
                     className="w-full bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-40 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors mb-2"
                   >
-                    <Eye className="w-4 h-4" /> Preview Receipt
+                    <Eye className="w-4 h-4" /> {t("Preview Receipt")}
                   </button>
 
                   <button
@@ -1280,12 +1284,12 @@ export default function HomePage() {
                   >
                     {isPrinting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
                     {isPrinting
-                      ? "Sending..."
+                      ? t("Sending...")
                       : paymentMethod === "Udhaar" && !customerName.trim()
-                      ? "Enter Name for Udhaar"
+                      ? t("Enter Name for Udhaar")
                       : currentSession?.status === "ready"
-                      ? "Waiting on laptop..."
-                      : "Generate Bill"}
+                      ? t("Waiting on laptop...")
+                      : t("Generate Bill")}
                   </button>
                 </div>
               </div>
@@ -1304,7 +1308,7 @@ export default function HomePage() {
                   onClick={() => setIsMobileCartOpen(true)}
                   className="bg-amber-500 text-white font-bold px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"
                 >
-                  View Cart <Receipt className="w-4 h-4" />
+                  {t("View Cart")} <Receipt className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -1316,7 +1320,7 @@ export default function HomePage() {
               <div className="bg-slate-100 rounded-3xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh] shadow-2xl relative">
                 <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between z-10 sticky top-0">
                   <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                    <Eye className="w-5 h-5 text-amber-500" /> Receipt Preview
+                    <Eye className="w-5 h-5 text-amber-500" /> {t("Receipt Preview")}
                   </h3>
                   <button onClick={() => setShowPreviewModal(false)} className="w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-full font-bold">
                     &times;
@@ -1334,7 +1338,7 @@ export default function HomePage() {
                     onClick={() => { setShowPreviewModal(false); makeBill(); }}
                     className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
                   >
-                    <Printer className="w-5 h-5" /> Generate Bill
+                    <Printer className="w-5 h-5" /> {t("Generate Bill")}
                   </button>
                 </div>
               </div>
@@ -1352,7 +1356,7 @@ export default function HomePage() {
                 <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                   <History className="w-5 h-5 text-amber-500" /> {t("Past Bills")}
                 </h2>
-                <p className="text-sm text-slate-500">View and reprint previous bills</p>
+                <p className="text-sm text-slate-500">{t("View and reprint previous bills")}</p>
               </div>
               <button
                 type="button"
@@ -1368,8 +1372,8 @@ export default function HomePage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
-                    <th className="text-left p-3 font-semibold">Bill #</th>
-                    <th className="text-left p-3 font-semibold">Table / Customer</th>
+                    <th className="text-left p-3 font-semibold">{t("Bill #")}</th>
+                    <th className="text-left p-3 font-semibold">{t("Table / Customer")}</th>
                     <th className="text-left p-3 font-semibold">Date</th>
                     <th className="text-left p-3 font-semibold">Payment</th>
                     <th className="text-right p-3 font-semibold">Total</th>
@@ -1384,7 +1388,7 @@ export default function HomePage() {
                   )}
                   {!pastBillsLoading && pastBills.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-500">No bills found.</td>
+                      <td colSpan={6} className="p-8 text-center text-slate-500">{t("No bills found.")}</td>
                     </tr>
                   )}
                   {!pastBillsLoading &&
@@ -1433,7 +1437,7 @@ export default function HomePage() {
               {/* Restaurant details */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
                 <h2 className="font-bold text-base flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <Store className="w-5 h-5 text-amber-500" /> Restaurant Details (top of bill)
+                  <Store className="w-5 h-5 text-amber-500" /> {t("Restaurant Details (top of bill)")}
                 </h2>
 
                 <div>
@@ -1481,7 +1485,7 @@ export default function HomePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Tax %</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">{t("Tax %")}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1496,7 +1500,7 @@ export default function HomePage() {
               {/* UPI Payment QR */}
               <div className="bg-white rounded-2xl border-2 border-emerald-300 shadow-sm p-5 space-y-3">
                 <h2 className="font-bold text-base flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <QrCode className="w-5 h-5 text-emerald-500" /> UPI Payment QR (amount auto-fills)
+                  <QrCode className="w-5 h-5 text-emerald-500" /> {t("UPI Payment QR (amount auto-fills)")}
                 </h2>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   Enter your <b>UPI ID / VPA</b> (e.g. <span className="font-mono">mahankalfoodpark@okhdfcbank</span>).
@@ -1505,7 +1509,7 @@ export default function HomePage() {
                   set to that bill&apos;s total</b> — they only enter their PIN. Leave empty to hide the QR.
                 </p>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">UPI ID / VPA</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">{t("UPI ID / VPA")}</label>
                   <input
                     value={form.upiId}
                     onChange={(e) => setField("upiId", e.target.value)}
@@ -1523,7 +1527,7 @@ export default function HomePage() {
               {/* ABOUT US — prints at bottom */}
               <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-sm p-5 space-y-3">
                 <h2 className="font-bold text-base flex items-center gap-2 text-slate-800 border-b border-slate-100 pb-2">
-                  <Receipt className="w-5 h-5 text-amber-500" /> About Us — printed at BOTTOM of bill
+                  <Receipt className="w-5 h-5 text-amber-500" /> {t("About Us — printed at BOTTOM of bill")}
                 </h2>
                 <p className="text-xs text-slate-500">
                   Write anything you want printed at the bottom of every bill: opening hours, social media,
@@ -1555,14 +1559,14 @@ export default function HomePage() {
                 className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
               >
                 {saved ? <CheckCircle2 className="w-5 h-5" /> : <Save className="w-5 h-5" />}
-                {saving ? "Saving..." : saved ? "Saved!" : "Save Details"}
+                {saving ? t("Saving...") : saved ? t("Saved!") : t("Save Details")}
               </button>
             </form>
 
             {/* Live preview */}
             <div className="lg:sticky lg:top-4">
               <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Eye className="w-4 h-4" /> Live Bill Preview
+                <Eye className="w-4 h-4" /> {t("Live Bill Preview")}
               </h2>
               <div className="bg-slate-200 rounded-2xl p-4 flex justify-center overflow-x-auto">
                 <PrintableReceipt {...previewData} />
