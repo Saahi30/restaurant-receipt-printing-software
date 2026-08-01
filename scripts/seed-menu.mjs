@@ -21,8 +21,8 @@ const menu = {
     english: "Rice",
     hindi: "राईस",
     items: [
-      { english: "Jeera Rice", hindi: "जीरा राईस", price: 80 },
-      { english: "Plain Rice", hindi: "राईस सादा", price: 70 },
+      { english: "Jeera Rice", hindi: "जीरा राईस", full_plate: 80, half_plate: 40 },
+      { english: "Plain Rice", hindi: "राईस सादा", full_plate: 70, half_plate: 35 },
       { english: "Matar Pulao", hindi: "मटर पुलाव", price: 90 },
       { english: "Shahi Pulao", hindi: "शाही पुलाव", price: 100 },
       { english: "Kashmiri Pulao", hindi: "कश्मीरी पुलाव", price: 100 },
