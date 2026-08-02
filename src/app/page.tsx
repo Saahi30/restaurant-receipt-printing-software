@@ -555,6 +555,21 @@ export default function HomePage() {
     setPrinterStatus("No printer connected");
   };
 
+  /** Send ESC @ to stop runaway blank paper feed. */
+  const stopPrinter = async () => {
+    if (!portRef.current) return;
+    try {
+      const writer = portRef.current.writable.getWriter();
+      await writer.write(new Uint8Array([0x1b, 0x40])); // ESC @
+      writer.releaseLock();
+      setPrinterStatus("Printer reset — ready");
+      setPrinterError("");
+      setIsPrinting(false);
+    } catch (err: any) {
+      setPrinterError(err?.message || "Could not stop printer. Open cover or power off.");
+    }
+  };
+
   useEffect(() => {
     const tryAuto = async () => {
       if (!("serial" in navigator)) return;
@@ -1050,6 +1065,16 @@ export default function HomePage() {
             {printerConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
             <span>{printerConnected ? t("Printer connected & ready") : t("Browser print OK")}</span>
           </div>
+          {printerConnected && (
+            <button
+              type="button"
+              onClick={stopPrinter}
+              className="hidden md:inline-flex text-xs font-bold px-2.5 py-1.5 rounded-full bg-red-600 hover:bg-red-500 text-white"
+              title="Stop blank paper feed"
+            >
+              {t("Stop printer")}
+            </button>
+          )}
         </div>
       </header>
 

@@ -223,6 +223,21 @@ export function LaptopBoard({
     setPrinterStatus("No printer connected");
   };
 
+  /** Send ESC @ to stop runaway blank paper feed. */
+  const stopPrinter = async () => {
+    if (!portRef.current) return;
+    try {
+      const writer = portRef.current.writable.getWriter();
+      await writer.write(new Uint8Array([0x1b, 0x40])); // ESC @
+      writer.releaseLock();
+      setPrinterStatus("Printer reset — ready");
+      setPrinterError("");
+      setIsPrinting(false);
+    } catch (err: any) {
+      setPrinterError(err?.message || "Could not stop printer. Open cover or power off.");
+    }
+  };
+
   const persistSession = async (session: TableSession, extra?: Partial<TableSession> & { markReady?: boolean; clear?: boolean; receipt?: any }) => {
     const res = await fetch("/api/table-sessions", {
       method: "PUT",
@@ -611,9 +626,18 @@ export function LaptopBoard({
             {t(printerStatus)}
           </div>
           {printerConnected ? (
-            <button onClick={disconnectPrinter} className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
-              <Usb className="w-4 h-4" /> {t("Disconnect")}
-            </button>
+            <>
+              <button
+                onClick={stopPrinter}
+                className="bg-red-600 hover:bg-red-500 px-3 py-2 rounded-lg text-sm font-semibold"
+                title="Stop blank paper feed"
+              >
+                {t("Stop printer")}
+              </button>
+              <button onClick={disconnectPrinter} className="bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
+                <Usb className="w-4 h-4" /> {t("Disconnect")}
+              </button>
+            </>
           ) : (
             <button onClick={connectPrinter} className="bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5">
               <Usb className="w-4 h-4" /> {t("Detect Printer")}

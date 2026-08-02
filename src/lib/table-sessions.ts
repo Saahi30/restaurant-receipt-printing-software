@@ -199,6 +199,60 @@ export async function listPendingPrintJobs() {
   return data || [];
 }
 
+/** Recent jobs for admin queue view (all statuses). */
+export async function listPrintJobs(limit = 80) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("print_jobs")
+    .select("id, table_id, status, error, created_at, printed_at, receipt")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function cancelPrintJob(id: string) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("print_jobs")
+    .update({
+      status: "cancelled",
+      error: "Cancelled by admin",
+      printed_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .in("status", ["pending", "printing"])
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+export async function retryPrintJob(id: string) {
+  const supabase = getSupabase();
+  const { data: existing, error: findError } = await supabase
+    .from("print_jobs")
+    .select("id, table_id, receipt")
+    .eq("id", id)
+    .maybeSingle();
+  if (findError) throw findError;
+  if (!existing) return null;
+
+  await supabase
+    .from("print_jobs")
+    .update({
+      status: "cancelled",
+      error: "Superseded by retry",
+      printed_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  return enqueuePrintJob({
+    tableId: existing.table_id,
+    receipt: existing.receipt,
+  });
+}
+
 function stationIsReady(row: { online: boolean; printer_connected: boolean; last_seen: string | null }): boolean {
   if (!row.online || !row.printer_connected || !row.last_seen) return false;
   const age = Date.now() - new Date(row.last_seen).getTime();

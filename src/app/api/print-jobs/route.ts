@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
 import {
+  cancelPrintJob,
   claimPrintJob,
   completePrintJob,
+  getPrintStation,
   listPendingPrintJobs,
+  listPrintJobs,
+  retryPrintJob,
 } from "@/lib/table-sessions";
 
-/** Laptop fetches any jobs that arrived while offline / before Realtime connected. */
-export async function GET() {
+/** Laptop: pending only. Admin: ?all=1 for full queue + station. */
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get("all") === "1") {
+      const [jobs, station] = await Promise.all([listPrintJobs(80), getPrintStation()]);
+      return NextResponse.json({ jobs, station });
+    }
     const jobs = await listPendingPrintJobs();
     return NextResponse.json({ jobs });
   } catch (error: any) {
@@ -15,7 +24,7 @@ export async function GET() {
   }
 }
 
-/** Claim or complete a print job. */
+/** Claim / complete / cancel / retry a print job. */
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
@@ -40,6 +49,19 @@ export async function PUT(request: Request) {
     if (body.action === "fail") {
       await completePrintJob(id, body.error || "Print failed");
       return NextResponse.json({ ok: true });
+    }
+
+    if (body.action === "cancel") {
+      const ok = await cancelPrintJob(id);
+      return NextResponse.json({ ok, cancelled: ok });
+    }
+
+    if (body.action === "retry") {
+      const newId = await retryPrintJob(id);
+      if (!newId) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true, id: newId });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

@@ -312,6 +312,24 @@ export const translations: Record<string, Record<Language, string>> = {
 
   // Laptop board
   "Laptop Print Station": { en: "Laptop Print Station", hi: "लैपटॉप प्रिंट स्टेशन" },
+  "Print Queue": { en: "Print Queue", hi: "प्रिंट कतार" },
+  "Jobs sent to the laptop print station": {
+    en: "Jobs sent to the laptop print station",
+    hi: "लैपटॉप प्रिंट स्टेशन को भेजे गए जॉब",
+  },
+  "Laptop station": { en: "Laptop station", hi: "लैपटॉप स्टेशन" },
+  "USB printer": { en: "USB printer", hi: "USB प्रिंटर" },
+  "Ready to print": { en: "Ready to print", hi: "प्रिंट के लिए तैयार" },
+  "Online": { en: "Online", hi: "ऑनलाइन" },
+  "Offline": { en: "Offline", hi: "ऑफलाइन" },
+  "Connected": { en: "Connected", hi: "कनेक्टेड" },
+  "Not connected": { en: "Not connected", hi: "कनेक्ट नहीं" },
+  "Yes": { en: "Yes", hi: "हाँ" },
+  "No": { en: "No", hi: "नहीं" },
+  "Time": { en: "Time", hi: "समय" },
+  "Cancel": { en: "Cancel", hi: "रद्द करें" },
+  "Retry": { en: "Retry", hi: "फिर से कोशिश" },
+  "No print jobs yet.": { en: "No print jobs yet.", hi: "अभी कोई प्रिंट जॉब नहीं।" },
   "Online for phones": { en: "Online for phones", hi: "फ़ोन के लिए ऑनलाइन" },
   "Not ready for phones": { en: "Not ready for phones", hi: "फ़ोन के लिए तैयार नहीं" },
   "Empty": { en: "Empty", hi: "खाली" },
@@ -331,6 +349,8 @@ export const translations: Record<string, Record<Language, string>> = {
   "Print Bill": { en: "Print Bill", hi: "बिल प्रिंट करें" },
   "No printer connected": { en: "No printer connected", hi: "प्रिंटर कनेक्ट नहीं है" },
   "Printer connected & ready": { en: "Printer connected & ready", hi: "प्रिंटर कनेक्ट और तैयार" },
+  "Stop printer": { en: "Stop printer", hi: "प्रिंटर रोकें" },
+  "Printer reset — ready": { en: "Printer reset — ready", hi: "प्रिंटर रीसेट — तैयार" },
   "Detecting printer...": { en: "Detecting printer...", hi: "प्रिंटर खोजा जा रहा है..." },
   "Printing...": { en: "Printing...", hi: "प्रिंट हो रहा है..." },
   "Printed! Printer connected & ready": {

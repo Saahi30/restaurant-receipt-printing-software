@@ -156,11 +156,17 @@ export class EscPosBuilder {
   // Word-wrap a block of text (respects existing newlines) to the paper width
   wrap(str: string): this {
     const paragraphs = str.replace(/\r/g, "").split("\n");
+    let blankStreak = 0;
     paragraphs.forEach((para) => {
       if (para.trim() === "") {
-        this.line("");
+        // Avoid dumping long runs of blank lines onto thermal paper
+        if (blankStreak < 1) {
+          this.line("");
+          blankStreak++;
+        }
         return;
       }
+      blankStreak = 0;
       const words = para.split(/\s+/);
       let current = "";
       words.forEach((word) => {
@@ -178,15 +184,26 @@ export class EscPosBuilder {
     return this;
   }
 
-  feed(lines: number = 3): this {
-    this.buffer.push(0x1B, 0x64, lines);
+  /** Feed at most a few lines — large values make cheap printers spit blank paper. */
+  feed(lines: number = 2): this {
+    const n = Math.max(0, Math.min(Math.floor(lines) || 0, 5));
+    if (n > 0) this.buffer.push(0x1B, 0x64, n);
     return this;
   }
 
-  // GS V - Paper Cut
+  /**
+   * Partial cut — use GS V 1 (no extra feed parameter).
+   * GS V 65 n (feed-then-cut) makes many clone printers feed endlessly.
+   */
   cut(): this {
-    this.feed(3);
-    this.buffer.push(0x1D, 0x56, 0x41, 0x03);
+    this.feed(2); // advance past the print head to the cutter
+    this.buffer.push(0x1D, 0x56, 0x01); // GS V 1 — partial cut
+    return this;
+  }
+
+  /** ESC @ — reset printer (stops runaway feed on most ESC/POS devices). */
+  reset(): this {
+    this.buffer.push(0x1B, 0x40);
     return this;
   }
 
@@ -305,18 +322,18 @@ export function generateEscPosReceipt(data: ReceiptData): {
   }
   if (data.aboutUs && data.aboutUs.trim() !== "") {
     builder.divider("-");
-    builder.wrap(data.aboutUs);
+    builder.wrap(data.aboutUs.trim());
   }
 
-  if (data.footerText) {
+  if (data.footerText && data.footerText.trim() !== "") {
     builder.divider("-");
-    builder.bold(true).wrap(data.footerText).bold(false);
+    builder.bold(true).wrap(data.footerText.trim()).bold(false);
   }
 
   if (data.cutPaper !== false) {
     builder.cut();
   } else {
-    builder.feed(4);
+    builder.feed(3);
   }
 
   return {
@@ -372,4 +389,9 @@ export function generateEscPosKOT(data: {
     uint8Array: builder.getUint8Array(),
     hex: builder.getHexString(),
   };
+}
+
+/** Immediate ESC @ reset — use to stop runaway blank feed. */
+export function generatePrinterReset(): Uint8Array {
+  return new Uint8Array([0x1B, 0x40]);
 }

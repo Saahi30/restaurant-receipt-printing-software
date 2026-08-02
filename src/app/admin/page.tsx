@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon, UtensilsCrossed, IndianRupee } from "lucide-react";
+import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon, UtensilsCrossed, IndianRupee, XCircle } from "lucide-react";
 import Link from "next/link";
 import { PrintableReceipt } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -56,13 +56,22 @@ export default function AdminPage() {
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
 
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [tab, setTab] = useState<"manage" | "reports">("reports");
+  const [tab, setTab] = useState<"manage" | "reports" | "queue">("reports");
   
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
   const [customFrom, setCustomFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
   
   const [reprintData, setReprintData] = useState<any>(null);
+  const [printJobs, setPrintJobs] = useState<any[]>([]);
+  const [printStation, setPrintStation] = useState<{
+    online: boolean;
+    printerConnected: boolean;
+    isReady: boolean;
+    lastSeen: string | null;
+  } | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check auth
@@ -128,6 +137,43 @@ export default function AdminPage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const loadPrintQueue = async () => {
+    setQueueLoading(true);
+    try {
+      const res = await fetch("/api/print-jobs?all=1");
+      if (res.ok) {
+        const json = await res.json();
+        setPrintJobs(json.jobs || []);
+        setPrintStation(json.station || null);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setQueueLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== "queue" || !isAuthorized) return;
+    loadPrintQueue();
+    const id = setInterval(loadPrintQueue, 4000);
+    return () => clearInterval(id);
+  }, [tab, isAuthorized]);
+
+  const queueAction = async (jobId: string, action: "cancel" | "retry") => {
+    setQueueBusyId(jobId);
+    try {
+      const res = await fetch("/api/print-jobs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: jobId, action }),
+      });
+      if (res.ok) await loadPrintQueue();
+    } finally {
+      setQueueBusyId(null);
     }
   };
 
@@ -340,7 +386,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="max-w-5xl mx-auto px-4 mt-4 print:hidden">
-        <div className="flex bg-slate-200 rounded-lg p-1 w-fit">
+        <div className="flex bg-slate-200 rounded-lg p-1 w-fit flex-wrap">
           <button
             onClick={() => setTab("reports")}
             className={`px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5 transition-all ${
@@ -348,6 +394,19 @@ export default function AdminPage() {
             }`}
           >
             <FileText className="w-4 h-4" /> Sales & Reports
+          </button>
+          <button
+            onClick={() => setTab("queue")}
+            className={`px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5 transition-all ${
+              tab === "queue" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Printer className="w-4 h-4" /> {t("Print Queue")}
+            {printJobs.filter((j) => j.status === "pending" || j.status === "printing").length > 0 && (
+              <span className="ml-0.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {printJobs.filter((j) => j.status === "pending" || j.status === "printing").length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setTab("manage")}
@@ -361,6 +420,166 @@ export default function AdminPage() {
       </div>
 
       <main className="max-w-5xl mx-auto p-4 space-y-6">
+        {tab === "queue" && (
+          <div className="space-y-4 print:hidden">
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <Printer className="w-5 h-5 text-amber-500" />
+                    {t("Print Queue")}
+                  </h2>
+                  <p className="text-sm text-slate-500">{t("Jobs sent to the laptop print station")}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadPrintQueue}
+                  disabled={queueLoading}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-4 h-4 ${queueLoading ? "animate-spin" : ""}`} />
+                  {t("Refresh")}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">
+                    {t("Laptop station")}
+                  </div>
+                  <div
+                    className={`text-sm font-bold ${
+                      printStation?.online ? "text-emerald-700" : "text-slate-500"
+                    }`}
+                  >
+                    {printStation?.online ? t("Online") : t("Offline")}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">
+                    {t("USB printer")}
+                  </div>
+                  <div
+                    className={`text-sm font-bold ${
+                      printStation?.printerConnected ? "text-emerald-700" : "text-slate-500"
+                    }`}
+                  >
+                    {printStation?.printerConnected ? t("Connected") : t("Not connected")}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">
+                    {t("Ready to print")}
+                  </div>
+                  <div
+                    className={`text-sm font-bold ${
+                      printStation?.isReady ? "text-emerald-700" : "text-amber-600"
+                    }`}
+                  >
+                    {printStation?.isReady ? t("Yes") : t("No")}
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="p-3 font-bold">{t("Time")}</th>
+                      <th className="p-3 font-bold">{t("Table")}</th>
+                      <th className="p-3 font-bold">{t("Bill No")}</th>
+                      <th className="p-3 font-bold text-right">{t("Total")}</th>
+                      <th className="p-3 font-bold">{t("Status")}</th>
+                      <th className="p-3 font-bold text-right">{t("Actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {printJobs.map((job) => {
+                      const receipt = job.receipt || {};
+                      const status = String(job.status || "");
+                      const statusClass =
+                        status === "done"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : status === "pending" || status === "printing"
+                          ? "bg-amber-50 text-amber-800 border-amber-200"
+                          : status === "failed"
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200";
+                      return (
+                        <tr key={job.id} className="border-t border-slate-100 align-top">
+                          <td className="p-3 text-xs text-slate-600 whitespace-nowrap">
+                            {job.created_at
+                              ? new Date(job.created_at).toLocaleString()
+                              : "—"}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-800">
+                            {receipt.tableNumber || job.table_id || "—"}
+                          </td>
+                          <td className="p-3 font-mono text-xs text-slate-700">
+                            {receipt.orderNumber || "—"}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-800">
+                            Rs. {Number(receipt.totalAmount || 0).toFixed(0)}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border capitalize ${statusClass}`}
+                            >
+                              {status || "—"}
+                            </span>
+                            {job.error && (
+                              <div className="text-[11px] text-red-600 mt-1 max-w-[180px] truncate" title={job.error}>
+                                {job.error}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 text-right whitespace-nowrap">
+                            {(status === "pending" || status === "printing") && (
+                              <button
+                                type="button"
+                                disabled={queueBusyId === job.id}
+                                onClick={() => queueAction(job.id, "cancel")}
+                                className="inline-flex items-center gap-1 text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 px-2 py-1 rounded-md disabled:opacity-50"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                {t("Cancel")}
+                              </button>
+                            )}
+                            {(status === "failed" || status === "cancelled" || status === "done") && (
+                              <button
+                                type="button"
+                                disabled={queueBusyId === job.id}
+                                onClick={() => queueAction(job.id, "retry")}
+                                className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 px-2 py-1 rounded-md disabled:opacity-50"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                {t("Retry")}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {printJobs.length === 0 && !queueLoading && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 font-medium">
+                          {t("No print jobs yet.")}
+                        </td>
+                      </tr>
+                    )}
+                    {queueLoading && printJobs.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 font-medium">
+                          {t("Loading...")}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        )}
         {tab === "manage" && (
           <div className="space-y-6 print:hidden">
             {/* Tables Section */}
