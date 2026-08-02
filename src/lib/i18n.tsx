@@ -375,6 +375,33 @@ export const translations: Record<string, Record<Language, string>> = {
   "Print failed": { en: "Print failed", hi: "प्रिंट असफल" },
   "Failed to save": { en: "Failed to save", hi: "सेव असफल" },
   "Billing & Thermal Printing": { en: "Billing & Thermal Printing", hi: "बिलिंग और थर्मल प्रिंटिंग" },
+
+  // Takeaway tokens
+  "TOKEN": { en: "TOKEN", hi: "टोकन" },
+  "Token": { en: "Token", hi: "टोकन" },
+  "Tokens": { en: "Tokens", hi: "टोकन" },
+  "Takeaway Tokens": { en: "Takeaway Tokens", hi: "टेकअवे टोकन" },
+  "Active parcel orders with pickup timers": {
+    en: "Active parcel orders with pickup timers",
+    hi: "पिकअप टाइमर वाले सक्रिय पार्सल ऑर्डर",
+  },
+  "PAID": { en: "PAID", hi: "भुगतान हो गया" },
+  "PAY AT PICKUP": { en: "PAY AT PICKUP", hi: "पिकअप पर भुगतान" },
+  "Keep this slip for pickup": {
+    en: "Keep this slip for pickup",
+    hi: "पिकअप के लिए यह पर्ची रखें",
+  },
+  "Paid now": { en: "Paid now", hi: "अभी भुगतान" },
+  "Collect at pickup": { en: "Collect at pickup", hi: "पिकअप पर लें" },
+  "Print Token + Bill": { en: "Print Token + Bill", hi: "टोकन + बिल प्रिंट" },
+  "Mark Ready": { en: "Mark Ready", hi: "तैयार चिह्नित करें" },
+  "Hand Over": { en: "Hand Over", hi: "सौंपें" },
+  "Collect & Hand Over": { en: "Collect & Hand Over", hi: "भुगतान लें और सौंपें" },
+  "Preparing": { en: "Preparing", hi: "तैयार हो रहा" },
+  "Ready": { en: "Ready", hi: "तैयार" },
+  "Overdue": { en: "Overdue", hi: "समय बीता" },
+  "No active tokens.": { en: "No active tokens.", hi: "कोई सक्रिय टोकन नहीं।" },
+  "Unpaid": { en: "Unpaid", hi: "बकाया" },
 };
 
 interface LanguageContextType {

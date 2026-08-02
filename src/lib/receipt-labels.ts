@@ -32,6 +32,12 @@ const EN = {
   note: "NOTE",
   endKot: "*** END OF KOT ***",
   none: "None",
+  token: "TOKEN",
+  tokenNo: "Token",
+  keepSlip: "Keep this slip for pickup",
+  paid: "PAID",
+  payAtPickup: "PAY AT PICKUP",
+  kitchenCopy: "KITCHEN / PACK COPY",
 } as const;
 
 /** Romanized Hindi — thermal printers cannot print Devanagari. */
@@ -66,6 +72,12 @@ const HI_PRINT = {
   note: "NOTE",
   endKot: "*** END OF KOT ***",
   none: "None",
+  token: "TOKEN",
+  tokenNo: "Token",
+  keepSlip: "Pickup ke liye ye slip rakhein",
+  paid: "PAID",
+  payAtPickup: "PICKUP PAR PAY",
+  kitchenCopy: "KITCHEN / PACK COPY",
 } as const;
 
 export type ReceiptLabelKey = keyof typeof EN;

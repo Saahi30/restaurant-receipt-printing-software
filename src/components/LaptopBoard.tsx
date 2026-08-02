@@ -308,12 +308,50 @@ export function LaptopBoard({
     };
   };
 
-  const printReceipt = async (data: ReceiptProps) => {
+  const printReceipt = async (data: ReceiptProps, tokenSlip?: ReceiptProps | null) => {
     // Silent USB print only — never open the Windows print dialog.
     if (!portRef.current) {
       throw new Error(t("Connect printer on this laptop first."));
     }
     setPrinterStatus(t("Printing..."));
+
+    const writeBytes = async (bytes: number[]) => {
+      const writer = portRef.current.writable.getWriter();
+      try {
+        await writer.write(new Uint8Array(bytes));
+      } finally {
+        writer.releaseLock();
+      }
+    };
+
+    const fetchBytes = async (type: string, payload: Record<string, unknown>) => {
+      const res = await fetch("/api/escpos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, data: payload }),
+      });
+      const json = await res.json();
+      if (!json.success || !json.bytes) throw new Error(json.error || "ESC/POS failed");
+      return json.bytes as number[];
+    };
+
+    if (tokenSlip?.tokenNumber) {
+      await writeBytes(
+        await fetchBytes("token", {
+          restaurantName: tokenSlip.restaurantName,
+          tokenNumber: tokenSlip.tokenNumber,
+          orderNumber: tokenSlip.orderNumber,
+          date: tokenSlip.date,
+          totalAmount: tokenSlip.totalAmount,
+          currency: tokenSlip.currency,
+          paymentCollected: tokenSlip.paymentCollected,
+          customerName: tokenSlip.customerName,
+          paperWidth: tokenSlip.paperWidth || "80mm",
+        })
+      );
+      await new Promise((r) => setTimeout(r, 350));
+    }
+
     const escposData = {
       ...data,
       lang: data.lang || lang,
@@ -325,20 +363,61 @@ export function LaptopBoard({
         notes: item.notes,
       })),
     };
-    const res = await fetch("/api/escpos", {
+    await writeBytes(await fetchBytes("receipt", escposData));
+    setPrinterStatus(t("Printed! Printer connected & ready"));
+  };
+
+  /** Allocate takeaway token + dual-print payload when needed. */
+  const withTakeawayToken = async (
+    tableId: string,
+    data: ReceiptProps
+  ): Promise<{ bill: ReceiptProps; tokenSlip: ReceiptProps | null }> => {
+    if (tableId !== "PARCEL") return { bill: data, tokenSlip: null };
+    if (data.tokenNumber) {
+      return {
+        bill: data,
+        tokenSlip: { ...data, isTokenSlip: true, receiptHeaderNote: "" },
+      };
+    }
+
+    const collected =
+      data.paymentCollected !== false && (data.paymentMethod || "").toLowerCase() !== "udhaar";
+
+    const tokenRes = await fetch("/api/tokens", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "receipt", data: escposData }),
+      body: JSON.stringify({
+        orderNumber: data.orderNumber,
+        customerName: data.customerName,
+        paymentMethod: data.paymentMethod,
+        paymentCollected: collected,
+        items: data.items.map((l) => ({
+          name: l.name,
+          nameHi: l.nameHi,
+          quantity: l.quantity,
+          price: l.price,
+        })),
+        totalAmount: data.totalAmount,
+        currency: data.currency,
+        createdBy: currentUser.username,
+      }),
     });
-    const json = await res.json();
-    if (json.success && json.bytes) {
-      const writer = portRef.current.writable.getWriter();
-      await writer.write(new Uint8Array(json.bytes));
-      writer.releaseLock();
-      setPrinterStatus(t("Printed! Printer connected & ready"));
-      return;
+    if (!tokenRes.ok) {
+      const err = await tokenRes.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to create token");
     }
-    throw new Error(json.error || "ESC/POS failed");
+    const { token } = await tokenRes.json();
+    const bill: ReceiptProps = {
+      ...data,
+      tokenNumber: token.tokenLabel,
+      tableNumber: token.tokenLabel,
+      paymentCollected: collected,
+      receiptHeaderNote: "KITCHEN / PACK COPY",
+    };
+    return {
+      bill,
+      tokenSlip: { ...bill, isTokenSlip: true, receiptHeaderNote: "" },
+    };
   };
 
   const finishAndClear = async (tableId: string, data: ReceiptProps) => {
@@ -375,8 +454,9 @@ export function LaptopBoard({
       if (!data?.items?.length) {
         throw new Error("Empty receipt on print job");
       }
-      await printReceipt(data);
-      await finishAndClear(job.table_id, data);
+      const prepared = await withTakeawayToken(job.table_id, data);
+      await printReceipt(prepared.bill, prepared.tokenSlip);
+      await finishAndClear(job.table_id, prepared.bill);
       await fetch("/api/print-jobs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -498,8 +578,9 @@ export function LaptopBoard({
             : "Parcel (Takeaway)"
           : tables.find((t) => t.id === session.tableId)?.name || session.tableId;
       const data = (session.receipt as ReceiptProps) || buildReceipt(session, name);
-      await printReceipt(data);
-      await finishAndClear(session.tableId, data);
+      const prepared = await withTakeawayToken(session.tableId, data);
+      await printReceipt(prepared.bill, prepared.tokenSlip);
+      await finishAndClear(session.tableId, prepared.bill);
       if (selectedId === session.tableId) setSelectedId(null);
       setToast(t("Auto-printed"));
       setTimeout(() => setToast(""), 2000);
@@ -586,8 +667,9 @@ export function LaptopBoard({
     setPrinterError("");
     try {
       const data = buildReceipt(selected, selectedName);
-      await printReceipt(data);
-      await finishAndClear(selectedId, data);
+      const prepared = await withTakeawayToken(selectedId, data);
+      await printReceipt(prepared.bill, prepared.tokenSlip);
+      await finishAndClear(selectedId, prepared.bill);
       setSelectedId(null);
     } catch (err: any) {
       setPrinterError(err.message || "Print failed");

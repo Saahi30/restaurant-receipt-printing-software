@@ -8,7 +8,10 @@ function pxToMm(px: number) {
  * Measures #thermal-print-section and sets @page height to content + small pad,
  * then opens the browser print dialog.
  */
-export function printThermalSection(sectionId = "thermal-print-section") {
+export function printThermalSection(
+  sectionId = "thermal-print-section",
+  opts?: { multiPage?: boolean }
+) {
   if (typeof window === "undefined") return;
 
   const section = document.getElementById(sectionId);
@@ -21,7 +24,7 @@ export function printThermalSection(sectionId = "thermal-print-section") {
 
   let heightMm = 120;
 
-  if (section) {
+  if (section && !opts?.multiPage) {
     // Temporarily reveal off-screen so we can measure (hidden elements report 0 height)
     const prevClass = section.className;
     const prevStyle = section.getAttribute("style") || "";
@@ -41,7 +44,16 @@ export function printThermalSection(sectionId = "thermal-print-section") {
   document.getElementById(STYLE_ID)?.remove();
   const style = document.createElement("style");
   style.id = STYLE_ID;
-  style.textContent = `
+  style.textContent = opts?.multiPage
+    ? `
+    @media print {
+      @page {
+        size: 80mm auto !important;
+        margin: 0 !important;
+      }
+    }
+  `
+    : `
     @media print {
       @page {
         size: 80mm ${heightMm}mm !important;

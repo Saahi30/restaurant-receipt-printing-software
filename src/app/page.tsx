@@ -141,6 +141,8 @@ export default function HomePage() {
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "UPI" | "Udhaar">("Cash");
+  /** Takeaway only: false = collect payment when order is handed over */
+  const [paymentCollected, setPaymentCollected] = useState(true);
   const [amountReceived, setAmountReceived] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [menuQtyDraft, setMenuQtyDraft] = useState<Record<string, string>>({});
@@ -151,6 +153,7 @@ export default function HomePage() {
   const [miscQty, setMiscQty] = useState("1");
   const [sessions, setSessions] = useState<Record<string, TableSession>>({});
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
+  const [tokenPrintData, setTokenPrintData] = useState<ReceiptProps | null>(null);
   const [pastBills, setPastBills] = useState<any[]>([]);
   const [pastBillsLoading, setPastBillsLoading] = useState(false);
   const [reprintData, setReprintData] = useState<any>(null);
@@ -400,6 +403,8 @@ export default function HomePage() {
     setCustomerName(s.customerName || "");
     if (s.paymentMethod === "Cash" || s.paymentMethod === "UPI" || s.paymentMethod === "Udhaar") {
       setPaymentMethod(s.paymentMethod);
+      if (s.paymentMethod === "Udhaar") setPaymentCollected(false);
+      else setPaymentCollected(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTable]);
@@ -638,39 +643,67 @@ export default function HomePage() {
     };
   };
 
-  const printLocally = async (data: ReceiptProps) => {
+  const writeEscPos = async (bytes: number[]) => {
+    if (!portRef.current) throw new Error("Printer not connected");
+    const writer = portRef.current.writable.getWriter();
+    try {
+      await writer.write(new Uint8Array(bytes));
+    } finally {
+      writer.releaseLock();
+    }
+  };
+
+  const fetchEscPosBytes = async (type: "receipt" | "token" | "kot", data: Record<string, unknown>) => {
+    const res = await fetch("/api/escpos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, data }),
+    });
+    const json = await res.json();
+    if (!json.success || !json.bytes) throw new Error(json.error || "ESC/POS failed");
+    return json.bytes as number[];
+  };
+
+  const toEscPosReceipt = (data: ReceiptProps) => ({
+    ...data,
+    items: data.items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.price * item.quantity,
+      notes: item.notes,
+    })),
+  });
+
+  const printLocally = async (data: ReceiptProps, tokenSlip?: ReceiptProps | null) => {
     // Prefer USB ESC/POS when connected; otherwise browser print (any device).
     if (printerConnected && portRef.current) {
       setPrinterStatus(t("Printing..."));
-      const escposData = {
-        ...data,
-        items: data.items.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.price * item.quantity,
-          notes: item.notes,
-        })),
-      };
-      const res = await fetch("/api/escpos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "receipt", data: escposData }),
-      });
-      const json = await res.json();
-      if (json.success && json.bytes) {
-        const writer = portRef.current.writable.getWriter();
-        await writer.write(new Uint8Array(json.bytes));
-        writer.releaseLock();
-        setPrinterStatus(t("Printed! Printer connected & ready"));
-        return;
+      if (tokenSlip?.tokenNumber) {
+        const tokenBytes = await fetchEscPosBytes("token", {
+          restaurantName: tokenSlip.restaurantName,
+          tokenNumber: tokenSlip.tokenNumber,
+          orderNumber: tokenSlip.orderNumber,
+          date: tokenSlip.date,
+          totalAmount: tokenSlip.totalAmount,
+          currency: tokenSlip.currency,
+          paymentCollected: tokenSlip.paymentCollected,
+          customerName: tokenSlip.customerName,
+          paperWidth: tokenSlip.paperWidth || "80mm",
+        });
+        await writeEscPos(tokenBytes);
+        await new Promise((r) => setTimeout(r, 350));
       }
-      throw new Error(json.error || "ESC/POS failed");
+      const billBytes = await fetchEscPosBytes("receipt", toEscPosReceipt(data));
+      await writeEscPos(billBytes);
+      setPrinterStatus(t("Printed! Printer connected & ready"));
+      return;
     }
 
+    setTokenPrintData(tokenSlip || null);
     setPrintData(data);
     await new Promise((r) => setTimeout(r, 120));
-    printThermalSection();
+    printThermalSection("thermal-print-section", { multiPage: !!tokenSlip });
   };
 
   const makeBill = async () => {
@@ -679,7 +712,56 @@ export default function HomePage() {
     setBillStatusMsg("");
     setIsPrinting(true);
     try {
-      const data = buildReceiptData(settings, currentBill, currentTableName);
+      const isTakeaway = selectedTable === "PARCEL";
+      const collected = isTakeaway
+        ? paymentMethod === "Udhaar"
+          ? false
+          : paymentCollected
+        : true;
+
+      let data = buildReceiptData(settings, currentBill, currentTableName);
+      data = { ...data, paymentCollected: collected };
+
+      let tokenSlip: ReceiptProps | null = null;
+
+      if (isTakeaway) {
+        const tokenRes = await fetch("/api/tokens", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderNumber: data.orderNumber,
+            customerName: customerName.trim() || undefined,
+            paymentMethod,
+            paymentCollected: collected,
+            items: currentBill.map((l) => ({
+              name: l.name,
+              nameHi: l.nameHi,
+              quantity: l.quantity,
+              price: l.price,
+            })),
+            totalAmount: data.totalAmount,
+            currency: data.currency,
+            createdBy: currentUser?.username,
+          }),
+        });
+        if (!tokenRes.ok) {
+          const err = await tokenRes.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to create token");
+        }
+        const { token } = await tokenRes.json();
+        data = {
+          ...data,
+          tokenNumber: token.tokenLabel,
+          tableNumber: token.tokenLabel,
+          receiptHeaderNote: "KITCHEN / PACK COPY",
+        };
+        tokenSlip = {
+          ...data,
+          isTokenSlip: true,
+          receiptHeaderNote: "",
+        };
+      }
+
       const payload = buildBillLogPayload(data);
 
       // 1) Save bill to database (no laptop required)
@@ -721,12 +803,17 @@ export default function HomePage() {
         },
       }));
       setAmountReceived("");
+      setPaymentCollected(true);
       if (selectedTable === "PARCEL") setCustomerName("");
 
-      // 3) Print from this device
-      await printLocally(payload);
-      setBillStatusMsg(t("Bill saved & printed"));
-      setTimeout(() => setBillStatusMsg(""), 2500);
+      // 3) Print: takeaway = slim token (customer) then kitchen bill
+      await printLocally(payload, tokenSlip);
+      setBillStatusMsg(
+        isTakeaway
+          ? `${t("Token")} ${payload.tokenNumber} — ${t("Bill saved & printed")}`
+          : t("Bill saved & printed")
+      );
+      setTimeout(() => setBillStatusMsg(""), 3500);
       setIsMobileCartOpen(false);
     } catch (err: any) {
       setPrinterError(err.message || t("Print failed"));
@@ -1577,6 +1664,8 @@ export default function HomePage() {
                           const pm = pmLabel as "Cash" | "UPI" | "Udhaar";
                           setPaymentMethod(pm);
                           if (pm !== "Cash") setAmountReceived("");
+                          if (pm === "Udhaar") setPaymentCollected(false);
+                          else if (selectedTable === "PARCEL") setPaymentCollected(true);
                           if (!selectedTable) return;
                           const prev = getSession(selectedTable);
                           persistCart(selectedTable, { ...prev, paymentMethod: pm, customerName });
@@ -1593,6 +1682,33 @@ export default function HomePage() {
                       </button>
                     ))}
                   </div>
+
+                  {selectedTable === "PARCEL" && paymentMethod !== "Udhaar" && (
+                    <div className="grid grid-cols-2 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentCollected(true)}
+                        className={`py-1 rounded text-[11px] font-bold border transition-colors ${
+                          paymentCollected
+                            ? "bg-emerald-600 border-emerald-600 text-white"
+                            : "bg-white border-slate-200 text-slate-500"
+                        }`}
+                      >
+                        {t("Paid now")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentCollected(false)}
+                        className={`py-1 rounded text-[11px] font-bold border transition-colors ${
+                          !paymentCollected
+                            ? "bg-amber-500 border-amber-500 text-white"
+                            : "bg-white border-slate-200 text-slate-500"
+                        }`}
+                      >
+                        {t("Collect at pickup")}
+                      </button>
+                    </div>
+                  )}
 
                   {paymentMethod === "Cash" && currentBill.length > 0 && (
                     <div className="flex items-center gap-1">
@@ -1645,6 +1761,8 @@ export default function HomePage() {
                         ? t("Printing...")
                         : paymentMethod === "Udhaar" && !customerName.trim()
                         ? t("Enter Name for Udhaar")
+                        : selectedTable === "PARCEL"
+                        ? t("Print Token + Bill")
                         : t("Print Bill")}
                     </button>
                   </div>
@@ -1938,7 +2056,14 @@ export default function HomePage() {
         {reprintData ? (
           <PrintableReceipt {...reprintData} />
         ) : (
-          printData && <PrintableReceipt {...printData} />
+          <>
+            {tokenPrintData && (
+              <div className="print:break-after-page">
+                <PrintableReceipt {...tokenPrintData} />
+              </div>
+            )}
+            {printData && <PrintableReceipt {...printData} />}
+          </>
         )}
       </div>
     </div>

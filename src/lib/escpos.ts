@@ -36,6 +36,10 @@ export interface ReceiptData {
   discountReason?: string;
   totalAmount: number;
   paymentMethod: string;
+  /** Takeaway queue token label e.g. T-12 */
+  tokenNumber?: string;
+  /** false = collect payment at pickup */
+  paymentCollected?: boolean;
   footerText?: string;
   aboutUs?: string;
   upiId?: string;
@@ -257,6 +261,13 @@ export function generateEscPosReceipt(data: ReceiptData): {
   builder.align("left");
   builder.row(`${L("billNo")}: ` + data.orderNumber, `${L("date")}: ` + data.date.split(" ")[0]);
   builder.row(`${L("type")}: ` + orderType, `${L("table")}: ` + data.tableNumber);
+  if (data.tokenNumber) {
+    builder.align("center").size("double").bold(true).line(`${L("token")}: ${data.tokenNumber}`);
+    builder.size("normal").bold(false).align("left");
+    if (data.paymentCollected === false) {
+      builder.align("center").bold(true).line(L("payAtPickup")).bold(false).align("left");
+    }
+  }
   if (data.customerName) {
     builder.row(`${L("customer")}: ` + data.customerName, data.customerPhone || "");
   }
@@ -384,6 +395,62 @@ export function generateEscPosKOT(data: {
   });
 
   builder.divider("=").align("center").line(L("endKot")).cut();
+
+  return {
+    uint8Array: builder.getUint8Array(),
+    hex: builder.getHexString(),
+  };
+}
+
+/** Slim customer pickup slip — token only. */
+export function generateEscPosTokenSlip(data: {
+  restaurantName: string;
+  tokenNumber: string;
+  orderNumber?: string;
+  date: string;
+  totalAmount?: number;
+  currency?: string;
+  paymentCollected?: boolean;
+  customerName?: string;
+  paperWidth: "80mm" | "58mm";
+}): { uint8Array: Uint8Array; hex: string } {
+  const builder = new EscPosBuilder(data.paperWidth);
+  const lang: ReceiptLang = "en";
+  const L = (key: Parameters<typeof receiptLabel>[0]) => receiptLabel(key, lang);
+  const paid = data.paymentCollected !== false;
+
+  builder
+    .align("center")
+    .bold(true)
+    .line(data.restaurantName)
+    .bold(false)
+    .divider("-")
+    .size("double")
+    .bold(true)
+    .line(L("token"))
+    .line(data.tokenNumber)
+    .size("normal")
+    .bold(false)
+    .divider("-");
+
+  if (data.customerName) builder.line(data.customerName);
+  if (data.orderNumber) builder.line(`${L("billNo")}: ${data.orderNumber}`);
+  builder.line(data.date);
+
+  if (data.totalAmount != null && data.currency) {
+    builder.bold(true).line(`${data.currency}${data.totalAmount.toFixed(2)}`).bold(false);
+  }
+
+  builder
+    .feed(1)
+    .size("double-height")
+    .bold(true)
+    .line(paid ? L("paid") : L("payAtPickup"))
+    .size("normal")
+    .bold(false)
+    .feed(1)
+    .line(L("keepSlip"))
+    .cut();
 
   return {
     uint8Array: builder.getUint8Array(),

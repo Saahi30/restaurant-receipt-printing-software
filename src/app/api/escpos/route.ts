@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { generateEscPosReceipt, generateEscPosKOT, ReceiptData } from "@/lib/escpos";
+import {
+  generateEscPosReceipt,
+  generateEscPosKOT,
+  generateEscPosTokenSlip,
+  ReceiptData,
+} from "@/lib/escpos";
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +18,8 @@ export async function POST(request: Request) {
     let result: { uint8Array: Uint8Array; hex: string };
     if (type === "kot") {
       result = generateEscPosKOT(data);
+    } else if (type === "token") {
+      result = generateEscPosTokenSlip(data);
     } else {
       result = generateEscPosReceipt(data as ReceiptData);
     }

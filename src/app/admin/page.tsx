@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon, UtensilsCrossed, IndianRupee, XCircle } from "lucide-react";
+import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon, UtensilsCrossed, IndianRupee, XCircle, Ticket } from "lucide-react";
 import Link from "next/link";
 import { PrintableReceipt } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
 import { printThermalSection } from "@/lib/thermal-print";
+import { formatTokenCountdown, type TakeawayToken } from "@/lib/token-types";
 
 interface Table {
   id: string;
@@ -57,7 +58,7 @@ export default function AdminPage() {
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
 
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [tab, setTab] = useState<"manage" | "reports" | "queue">("reports");
+  const [tab, setTab] = useState<"manage" | "reports" | "queue" | "tokens">("tokens");
   
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "custom">("today");
   const [customFrom, setCustomFrom] = useState(() => new Date().toISOString().slice(0, 10));
@@ -73,6 +74,11 @@ export default function AdminPage() {
   } | null>(null);
   const [queueLoading, setQueueLoading] = useState(false);
   const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
+
+  const [tokens, setTokens] = useState<TakeawayToken[]>([]);
+  const [tokensLoading, setTokensLoading] = useState(false);
+  const [tokenBusyId, setTokenBusyId] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
     // Check auth
@@ -157,12 +163,40 @@ export default function AdminPage() {
     }
   };
 
+  const loadTokens = async () => {
+    setTokensLoading(true);
+    try {
+      const res = await fetch("/api/tokens?active=1");
+      if (res.ok) {
+        const json = await res.json();
+        setTokens(json.tokens || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTokensLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (tab !== "queue" || !isAuthorized) return;
     loadPrintQueue();
     const id = setInterval(loadPrintQueue, 4000);
     return () => clearInterval(id);
   }, [tab, isAuthorized]);
+
+  useEffect(() => {
+    if (tab !== "tokens" || !isAuthorized) return;
+    loadTokens();
+    const id = setInterval(loadTokens, 5000);
+    return () => clearInterval(id);
+  }, [tab, isAuthorized]);
+
+  useEffect(() => {
+    if (tab !== "tokens") return;
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [tab]);
 
   const queueAction = async (jobId: string, action: "cancel" | "retry") => {
     setQueueBusyId(jobId);
@@ -177,6 +211,35 @@ export default function AdminPage() {
       setQueueBusyId(null);
     }
   };
+
+  const tokenAction = async (
+    id: string,
+    patch: { status?: string; paymentCollected?: boolean; paymentMethod?: string }
+  ) => {
+    setTokenBusyId(id);
+    try {
+      const res = await fetch("/api/tokens", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...patch }),
+      });
+      if (res.ok) await loadTokens();
+    } finally {
+      setTokenBusyId(null);
+    }
+  };
+
+  const activeTokensLive = useMemo(() => {
+    return tokens.map((tok) => {
+      const deadline = new Date(tok.createdAt).getTime() + tok.slaMinutes * 60_000;
+      const remainingMs = deadline - nowTick;
+      return {
+        ...tok,
+        remainingMs,
+        overdue: remainingMs < 0,
+      };
+    });
+  }, [tokens, nowTick]);
 
   // --- Tables ---
   const addTable = () => {
@@ -389,6 +452,19 @@ export default function AdminPage() {
       <div className="max-w-5xl mx-auto px-4 mt-4 print:hidden">
         <div className="flex bg-slate-200 rounded-lg p-1 w-fit flex-wrap">
           <button
+            onClick={() => setTab("tokens")}
+            className={`px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5 transition-all ${
+              tab === "tokens" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Ticket className="w-4 h-4" /> {t("Tokens")}
+            {activeTokensLive.length > 0 && (
+              <span className="ml-0.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {activeTokensLive.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setTab("reports")}
             className={`px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-1.5 transition-all ${
               tab === "reports" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
@@ -421,6 +497,142 @@ export default function AdminPage() {
       </div>
 
       <main className="max-w-5xl mx-auto p-4 space-y-6">
+        {tab === "tokens" && (
+          <div className="space-y-4 print:hidden">
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-amber-500" />
+                    {t("Takeaway Tokens")}
+                  </h2>
+                  <p className="text-sm text-slate-500">{t("Active parcel orders with pickup timers")}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadTokens}
+                  disabled={tokensLoading}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-4 h-4 ${tokensLoading ? "animate-spin" : ""}`} />
+                  {t("Refresh")}
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {activeTokensLive.map((tok) => {
+                  const clock = formatTokenCountdown(tok.remainingMs);
+                  const itemSummary = (tok.items || [])
+                    .map((i) => `${i.quantity}× ${i.name}`)
+                    .join(", ");
+                  return (
+                    <div
+                      key={tok.id}
+                      className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${
+                        tok.overdue
+                          ? "border-red-300 bg-red-50"
+                          : tok.status === "ready"
+                          ? "border-emerald-300 bg-emerald-50"
+                          : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="shrink-0 w-16 h-16 rounded-xl bg-slate-900 text-white flex flex-col items-center justify-center">
+                          <span className="text-[9px] font-bold tracking-widest opacity-70">TOKEN</span>
+                          <span className="text-xl font-extrabold leading-none">{tok.tokenLabel}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                tok.status === "ready"
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {tok.status === "ready" ? t("Ready") : t("Preparing")}
+                            </span>
+                            {!tok.paymentCollected && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                                {t("Unpaid")}
+                              </span>
+                            )}
+                            {tok.overdue && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-red-600 text-white">
+                                {t("Overdue")}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-800 mt-1 truncate">
+                            {tok.customerName || tok.orderNumber || "—"}
+                          </div>
+                          <div className="text-xs text-slate-500 truncate">{itemSummary || "—"}</div>
+                          <div className="text-sm font-mono font-bold text-slate-800 mt-0.5">
+                            {tok.currency}
+                            {Number(tok.totalAmount).toFixed(2)} · {tok.paymentMethod}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`shrink-0 text-center font-mono font-extrabold text-2xl tabular-nums px-3 ${
+                          tok.overdue ? "text-red-600" : "text-slate-800"
+                        }`}
+                        title={`${tok.slaMinutes} min SLA`}
+                      >
+                        {clock}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        {tok.status === "preparing" && (
+                          <button
+                            type="button"
+                            disabled={tokenBusyId === tok.id}
+                            onClick={() => tokenAction(tok.id, { status: "ready" })}
+                            className="px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                          >
+                            {t("Mark Ready")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={tokenBusyId === tok.id}
+                          onClick={() =>
+                            tokenAction(tok.id, {
+                              status: "handed_over",
+                              paymentCollected: true,
+                            })
+                          }
+                          className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-50"
+                        >
+                          {tok.paymentCollected ? t("Hand Over") : t("Collect & Hand Over")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={tokenBusyId === tok.id}
+                          onClick={() => tokenAction(tok.id, { status: "cancelled" })}
+                          className="px-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {t("Cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {activeTokensLive.length === 0 && !tokensLoading && (
+                  <p className="text-sm text-slate-500 text-center py-8">{t("No active tokens.")}</p>
+                )}
+                {tokensLoading && activeTokensLive.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-8 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Loading…
+                  </p>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
         {tab === "queue" && (
           <div className="space-y-4 print:hidden">
             <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">

@@ -64,6 +64,10 @@ export interface ReceiptProps {
   discountReason?: string;
   totalAmount: number;
   paymentMethod: string;
+  /** Takeaway queue token e.g. T-12 */
+  tokenNumber?: string;
+  /** false = collect at pickup */
+  paymentCollected?: boolean;
   footerText?: string;
   aboutUs?: string;
   wifiSSID?: string;
@@ -72,6 +76,8 @@ export interface ReceiptProps {
   upiId?: string;
   receiptHeaderNote?: string;
   isKOT?: boolean;
+  /** Slim customer pickup slip */
+  isTokenSlip?: boolean;
   /** App language when the bill was created — drives label language. */
   lang?: "en" | "hi";
 }
@@ -101,6 +107,8 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
     discountReason,
     totalAmount = 0,
     paymentMethod = "Cash",
+    tokenNumber,
+    paymentCollected = true,
     footerText,
     aboutUs,
     wifiSSID,
@@ -109,6 +117,7 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
     upiId,
     receiptHeaderNote,
     isKOT = false,
+    isTokenSlip = false,
     lang: receiptLang,
   } = props;
 
@@ -147,6 +156,36 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
           note: `Bill ${orderNumber} - ${tableNumber}`,
         })
       : "";
+
+  if (isTokenSlip) {
+    return (
+      <div
+        ref={ref}
+        className={`bg-white text-black mx-auto p-3 shadow-sm border border-gray-300 leading-tight ${widthClass} print:shadow-none print:border-none print:m-0 print:p-0 print:px-0.5 print:w-full print:max-w-none`}
+        style={{ fontFamily: fontStack }}
+      >
+        <div className="text-center">
+          <div className="font-bold text-sm">{restaurantName}</div>
+          <div className="border-t border-b border-dashed border-black my-2 py-2">
+            <div className="text-xs font-bold tracking-widest uppercase">{tr("TOKEN")}</div>
+            <div className="text-4xl font-extrabold tracking-tight my-1">{tokenNumber || "—"}</div>
+          </div>
+          {customerName && <div className="text-xs font-semibold mb-1">{customerName}</div>}
+          <div className="text-[10px] text-black">{date}</div>
+          <div className="text-sm font-bold mt-2">
+            {currency}
+            {totalAmount.toFixed(2)}
+          </div>
+          <div
+            className={`mt-3 border-2 border-black font-extrabold py-1.5 text-sm tracking-wider uppercase`}
+          >
+            {paymentCollected ? tr("PAID") : tr("PAY AT PICKUP")}
+          </div>
+          <div className="text-[10px] mt-3 font-semibold">{tr("Keep this slip for pickup")}</div>
+        </div>
+      </div>
+    );
+  }
 
   if (isKOT) {
     return (
@@ -251,6 +290,15 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
             <span className="font-bold">{tr("Mode")}:</span> {displayOrderType}
           </span>
         </div>
+        {tokenNumber && (
+          <div className="mt-2 text-center border-2 border-black py-1.5">
+            <div className="text-[10px] font-bold tracking-widest uppercase">{tr("TOKEN")}</div>
+            <div className="text-2xl font-extrabold tracking-tight">{tokenNumber}</div>
+            {!paymentCollected && (
+              <div className="text-[10px] font-extrabold uppercase mt-0.5">{tr("PAY AT PICKUP")}</div>
+            )}
+          </div>
+        )}
         {customerName && (
           <div className="mt-1 pt-1 border-t border-dotted border-black text-[11px]">
             <span className="font-bold">{tr("Customer")}:</span> {customerName}{" "}
@@ -260,6 +308,11 @@ export const PrintableReceipt = React.forwardRef<HTMLDivElement, ReceiptProps>((
         {paymentMethod.toLowerCase() === "udhaar" && (
           <div className="mt-2 text-center border-2 border-black font-bold py-1 text-sm tracking-widest uppercase">
             {tr("UDHAAR (UNPAID)")}
+          </div>
+        )}
+        {!paymentCollected && paymentMethod.toLowerCase() !== "udhaar" && !tokenNumber && (
+          <div className="mt-2 text-center border-2 border-black font-bold py-1 text-sm tracking-widest uppercase">
+            {tr("PAY AT PICKUP")}
           </div>
         )}
       </div>
