@@ -7,6 +7,7 @@ import { PrintableReceipt } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
+import { printThermalSection } from "@/lib/thermal-print";
 
 interface Table {
   id: string;
@@ -346,8 +347,8 @@ export default function AdminPage() {
   const handleReprint = (bill: any) => {
     setReprintData(bill);
     setTimeout(() => {
-      window.print();
-      setTimeout(() => setReprintData(null), 500); // Clear after print dialog opens
+      printThermalSection();
+      setTimeout(() => setReprintData(null), 500);
     }, 150);
   };
 

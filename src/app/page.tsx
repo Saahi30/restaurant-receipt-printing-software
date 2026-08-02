@@ -35,6 +35,7 @@ import {
   verifyFingerprint,
 } from "@/lib/webauthn";
 import { LaptopBoard } from "@/components/LaptopBoard";
+import { printThermalSection } from "@/lib/thermal-print";
 
 interface User {
   id: string;
@@ -669,7 +670,7 @@ export default function HomePage() {
 
     setPrintData(data);
     await new Promise((r) => setTimeout(r, 120));
-    window.print();
+    printThermalSection();
   };
 
   const makeBill = async () => {
@@ -980,7 +981,7 @@ export default function HomePage() {
   const handleReprintPastBill = (bill: any) => {
     setReprintData(bill);
     setTimeout(() => {
-      window.print();
+      printThermalSection();
       setTimeout(() => setReprintData(null), 500);
     }, 100);
   };
