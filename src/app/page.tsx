@@ -153,7 +153,6 @@ export default function HomePage() {
   const [miscQty, setMiscQty] = useState("1");
   const [sessions, setSessions] = useState<Record<string, TableSession>>({});
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
-  const [tokenPrintData, setTokenPrintData] = useState<ReceiptProps | null>(null);
   const [pastBills, setPastBills] = useState<any[]>([]);
   const [pastBillsLoading, setPastBillsLoading] = useState(false);
   const [reprintData, setReprintData] = useState<any>(null);
@@ -679,6 +678,7 @@ export default function HomePage() {
     // Prefer USB ESC/POS when connected; otherwise browser print (any device).
     if (printerConnected && portRef.current) {
       setPrinterStatus(t("Printing..."));
+      // Token and bill are separate print jobs with a full cut between them.
       if (tokenSlip?.tokenNumber) {
         const tokenBytes = await fetchEscPosBytes("token", {
           restaurantName: tokenSlip.restaurantName,
@@ -692,7 +692,8 @@ export default function HomePage() {
           paperWidth: tokenSlip.paperWidth || "80mm",
         });
         await writeEscPos(tokenBytes);
-        await new Promise((r) => setTimeout(r, 350));
+        // Wait for cutter to finish before sending kitchen bill
+        await new Promise((r) => setTimeout(r, 1200));
       }
       const billBytes = await fetchEscPosBytes("receipt", toEscPosReceipt(data));
       await writeEscPos(billBytes);
@@ -700,10 +701,19 @@ export default function HomePage() {
       return;
     }
 
-    setTokenPrintData(tokenSlip || null);
-    setPrintData(data);
-    await new Promise((r) => setTimeout(r, 120));
-    printThermalSection("thermal-print-section", { multiPage: !!tokenSlip });
+    // Browser print: two separate dialogs — token first, then kitchen bill
+    const printOne = async (receipt: ReceiptProps) => {
+      setReprintData(null);
+      setPrintData(receipt);
+      await new Promise((r) => setTimeout(r, 180));
+      await printThermalSection();
+    };
+
+    if (tokenSlip?.tokenNumber) {
+      await printOne(tokenSlip);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    await printOne(data);
   };
 
   const makeBill = async () => {
@@ -2056,14 +2066,7 @@ export default function HomePage() {
         {reprintData ? (
           <PrintableReceipt {...reprintData} />
         ) : (
-          <>
-            {tokenPrintData && (
-              <div className="print:break-after-page">
-                <PrintableReceipt {...tokenPrintData} />
-              </div>
-            )}
-            {printData && <PrintableReceipt {...printData} />}
-          </>
+          printData && <PrintableReceipt {...printData} />
         )}
       </div>
     </div>

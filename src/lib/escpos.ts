@@ -450,6 +450,7 @@ export function generateEscPosTokenSlip(data: {
     .bold(false)
     .feed(1)
     .line(L("keepSlip"))
+    .feed(3)
     .cut();
 
   return {

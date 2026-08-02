@@ -349,7 +349,8 @@ export function LaptopBoard({
           paperWidth: tokenSlip.paperWidth || "80mm",
         })
       );
-      await new Promise((r) => setTimeout(r, 350));
+      // Wait for cutter to finish before kitchen bill (separate slip)
+      await new Promise((r) => setTimeout(r, 1200));
     }
 
     const escposData = {
