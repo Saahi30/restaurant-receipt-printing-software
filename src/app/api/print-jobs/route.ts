@@ -3,6 +3,7 @@ import {
   cancelPrintJob,
   claimPrintJob,
   completePrintJob,
+  enqueuePrintJob,
   getPrintStation,
   listPendingPrintJobs,
   listPrintJobs,
@@ -19,6 +20,25 @@ export async function GET(request: Request) {
     }
     const jobs = await listPendingPrintJobs();
     return NextResponse.json({ jobs });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+/** Enqueue an already-finalized "print-only" job (bill/token already saved by the sender). */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const tableId = body.tableId as string;
+    const receipt = body.receipt;
+    if (!tableId || !receipt) {
+      return NextResponse.json({ error: "tableId and receipt are required" }, { status: 400 });
+    }
+    const id = await enqueuePrintJob({
+      tableId,
+      receipt: { ...receipt, _printOnly: true },
+    });
+    return NextResponse.json({ ok: true, id });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

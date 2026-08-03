@@ -300,6 +300,40 @@ async function finishAndClear(tableId, data) {
   }).catch((e) => warn("Session clear failed:", e.message));
 }
 
+/** Build a small self-contained "TEST OK" ESC/POS receipt (no server needed). */
+function buildTestBytes() {
+  const enc = (s) => Array.from(Buffer.from(String(s), "latin1"));
+  const b = [];
+  b.push(0x1b, 0x40); // init
+  b.push(0x1b, 0x61, 0x01); // center
+  b.push(0x1b, 0x45, 0x01); // bold on
+  b.push(0x1d, 0x21, 0x11); // double width/height
+  b.push(...enc("TEST OK"), 0x0a);
+  b.push(0x1d, 0x21, 0x00); // normal size
+  b.push(...enc("Print agent is ready"), 0x0a);
+  b.push(0x1b, 0x45, 0x00); // bold off
+  b.push(...enc(new Date().toLocaleString()), 0x0a);
+  b.push(...enc(PRINT_MODE === "serial" ? SERIAL_PATH || "auto COM" : WINDOWS_PRINTER_NAME), 0x0a);
+  b.push(0x1b, 0x64, 0x03); // feed 3 lines
+  b.push(0x1d, 0x56, 0x01); // partial cut
+  return b;
+}
+
+async function testPrint() {
+  log("Printing startup TEST OK receipt...");
+  const ok = await printer.ensureConnected();
+  if (!ok) {
+    warn("Test print skipped — printer not reachable yet.");
+    return;
+  }
+  try {
+    await printer.write(buildTestBytes());
+    log("TEST OK receipt sent.");
+  } catch (e) {
+    warn("Test print failed:", e.message);
+  }
+}
+
 const handled = new Set();
 
 async function processJob(job) {
@@ -319,7 +353,10 @@ async function processJob(job) {
 
     const prepared = await withTakeawayToken(job.table_id, data);
     await printReceipt(prepared.bill, prepared.tokenSlip);
-    await finishAndClear(job.table_id, prepared.bill);
+    // Phone-sent jobs are already finalized (bill saved + table cleared) — just print.
+    if (!data._printOnly) {
+      await finishAndClear(job.table_id, prepared.bill);
+    }
     await api("/api/print-jobs", "PUT", { id: job.id, action: "complete" });
     log(`Job ${job.id} printed & completed.`);
   } catch (e) {
@@ -383,6 +420,11 @@ async function main() {
   log(`Poll:     every ${POLL_MS}ms`);
 
   await printer.ensureConnected();
+
+  if ((process.env.TEST_PRINT_ON_START || "true").toLowerCase() !== "false") {
+    await testPrint();
+  }
+
   await heartbeat();
 
   setInterval(pollOnce, POLL_MS);

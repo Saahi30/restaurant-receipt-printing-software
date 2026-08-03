@@ -701,19 +701,21 @@ export default function HomePage() {
       return;
     }
 
-    // Browser print: two separate dialogs — token first, then kitchen bill
-    const printOne = async (receipt: ReceiptProps) => {
-      setReprintData(null);
-      setPrintData(receipt);
-      await new Promise((r) => setTimeout(r, 180));
-      await printThermalSection();
-    };
-
-    if (tokenSlip?.tokenNumber) {
-      await printOne(tokenSlip);
-      await new Promise((r) => setTimeout(r, 400));
+    // No local USB printer (e.g. on a phone): push the bill to the laptop print
+    // station queue so it prints silently there — never open this device's print dialog.
+    const enqueueRes = await fetch("/api/print-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tableId: selectedTable,
+        receipt: data,
+      }),
+    });
+    if (!enqueueRes.ok) {
+      const err = await enqueueRes.json().catch(() => ({}));
+      throw new Error(err.error || t("Could not send to printer station"));
     }
-    await printOne(data);
+    setPrinterStatus(t("Sent to printer station"));
   };
 
   const makeBill = async () => {
@@ -820,8 +822,8 @@ export default function HomePage() {
       await printLocally(payload, tokenSlip);
       setBillStatusMsg(
         isTakeaway
-          ? `${t("Token")} ${payload.tokenNumber} — ${t("Bill saved & printed")}`
-          : t("Bill saved & printed")
+          ? `${t("Token")} ${payload.tokenNumber} — ${t("Bill saved & sent to printer")}`
+          : t("Bill saved & sent to printer")
       );
       setTimeout(() => setBillStatusMsg(""), 3500);
       setIsMobileCartOpen(false);

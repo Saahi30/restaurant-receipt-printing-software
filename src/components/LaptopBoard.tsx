@@ -534,7 +534,10 @@ export function LaptopBoard({
       }
       const prepared = await withTakeawayToken(job.table_id, data);
       await printReceipt(prepared.bill, prepared.tokenSlip);
-      await finishAndClear(job.table_id, prepared.bill);
+      // Phone-sent jobs are already finalized (bill saved + table cleared) — just print.
+      if (!(data as any)?._printOnly) {
+        await finishAndClear(job.table_id, prepared.bill);
+      }
       await fetch("/api/print-jobs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
