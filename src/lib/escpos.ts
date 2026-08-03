@@ -6,6 +6,7 @@ import {
   translatePaymentMethod,
   type ReceiptLang,
 } from "@/lib/receipt-labels";
+import { buildUpiLink } from "@/lib/upi";
 
 export interface ReceiptData {
   restaurantName: string;
@@ -217,6 +218,44 @@ export class EscPosBuilder {
     return this;
   }
 
+  /**
+   * Native ESC/POS QR Code (GS ( k — Model 2).
+   * Works on Epson-compatible printers (Xprinter, Rongta, POS80, etc.).
+   * moduleSize: 1–16 dots per module; ~6 for 80mm, ~4 for 58mm.
+   */
+  qr(data: string, moduleSize: number = 6): this {
+    const bytes: number[] = [];
+    for (let i = 0; i < data.length; i++) {
+      const code = data.charCodeAt(i);
+      bytes.push(code <= 0xff ? code : 0x3f);
+    }
+
+    const size = Math.max(1, Math.min(16, Math.floor(moduleSize) || 6));
+
+    // Function 165 — select model (Model 2)
+    this.buffer.push(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
+    // Function 167 — module size
+    this.buffer.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, size);
+    // Function 169 — error correction level M (49)
+    this.buffer.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31);
+    // Function 180 — store data (pL + pH*256 = bytes.length + 3)
+    const storeLen = bytes.length + 3;
+    this.buffer.push(
+      0x1d,
+      0x28,
+      0x6b,
+      storeLen & 0xff,
+      (storeLen >> 8) & 0xff,
+      0x31,
+      0x50,
+      0x30,
+      ...bytes
+    );
+    // Function 181 — print QR
+    this.buffer.push(0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30);
+    return this;
+  }
+
   getUint8Array(): Uint8Array {
     return new Uint8Array(this.buffer);
   }
@@ -318,12 +357,22 @@ export function generateEscPosReceipt(data: ReceiptData): {
   builder.divider("=");
   builder.row(`${L("paymentMode")}:`, payment.toUpperCase());
 
-  // UPI payment info (VPA only — amount auto-fills when customer scans the QR)
+  // UPI payment QR — amount auto-fills when customer scans
   if (data.upiId && data.upiId.trim() !== "") {
+    const upiUrl = buildUpiLink({
+      vpa: data.upiId,
+      payeeName: data.restaurantName,
+      amount: data.totalAmount,
+      note: `Bill ${data.orderNumber} - ${data.tableNumber}`,
+    });
+    const qrSize = data.paperWidth === "58mm" ? 4 : 6;
+
     builder.divider("-");
-    builder.line(L("payViaUpi"));
+    builder.align("center").bold(true).line(L("payViaUpi")).bold(false);
+    builder.qr(upiUrl, qrSize);
     builder.line(`${L("upiId")}: ` + data.upiId.trim());
     builder.line(L("amountAuto"));
+    builder.align("left");
   }
 
   // Footer

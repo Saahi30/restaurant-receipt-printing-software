@@ -4,33 +4,9 @@ import React from "react";
 import QRCode from "react-qr-code";
 import { useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
+import { buildUpiLink } from "@/lib/upi";
 
-/**
- * Builds a standard UPI deep-link (UPI Intent URI).
- * Format:  upi://pay?pa=<VPA>&pn=<Payee Name>&am=<Amount>&cu=INR&tn=<Note>
- *   pa  -> Payee VPA / UPI ID (e.g. mahankalfoodpark@okhdfcbank)
- *   pn  -> Payee display name
- *   am  -> Amount, auto-set from the bill total (2 decimals)
- *   cu  -> Currency code (INR)
- *   tn  -> Transaction note (bill number + table)
- * Any UPI app (GPay, PhonePe, Paytm, BHIM) that scans this QR opens a
- * payment request with the VPA and amount pre-filled — the customer only
- * has to enter their UPI PIN.
- */
-export function buildUpiLink(opts: {
-  vpa: string;
-  payeeName: string;
-  amount: number;
-  note?: string;
-}): string {
-  const params = new URLSearchParams();
-  params.set("pa", opts.vpa.trim());
-  params.set("pn", opts.payeeName);
-  params.set("am", opts.amount.toFixed(2));
-  params.set("cu", "INR");
-  if (opts.note) params.set("tn", opts.note);
-  return `upi://pay?${params.toString()}`;
-}
+export { buildUpiLink };
 
 export interface ReceiptItem {
   id?: number;
