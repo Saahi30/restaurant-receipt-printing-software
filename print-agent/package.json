@@ -1,0 +1,18 @@
+{
+  "name": "restaurant-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless Windows print agent: pulls print jobs from the deployed app and prints them silently over USB/serial. No browser, no dialog.",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "list-ports": "node list-ports.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "optionalDependencies": {
+    "serialport": "^12.0.0"
+  }
+}

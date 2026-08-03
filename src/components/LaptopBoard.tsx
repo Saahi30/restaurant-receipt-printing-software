@@ -89,6 +89,7 @@ export function LaptopBoard({
   const [printData, setPrintData] = useState<ReceiptProps | null>(null);
   const [toast, setToast] = useState("");
   const portRef = useRef<any>(null);
+  const wakeLockRef = useRef<any>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handledJobsRef = useRef<Set<string>>(new Set());
   const jobBusyRef = useRef(false);
@@ -178,20 +179,85 @@ export function LaptopBoard({
     };
   }, [printerConnected]);
 
+  /** Open a previously-granted serial port without any user prompt. */
+  const openGrantedPort = async (): Promise<boolean> => {
+    if (!("serial" in navigator)) return false;
+    if (portRef.current) return true;
+    try {
+      const ports = await (navigator as any).serial.getPorts();
+      if (!ports?.length) return false;
+      await ports[0].open({ baudRate: 9600 });
+      portRef.current = ports[0];
+      setPrinterConnected(true);
+      setPrinterStatus("Printer connected & ready");
+      setPrinterError("");
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Auto-connect on load + keep reconnecting silently for 24/7 unattended running.
   useEffect(() => {
-    const tryAuto = async () => {
-      if (!("serial" in navigator)) return;
-      try {
-        const ports = await (navigator as any).serial.getPorts();
-        if (ports?.length > 0) {
-          await ports[0].open({ baudRate: 9600 });
-          portRef.current = ports[0];
-          setPrinterConnected(true);
-          setPrinterStatus("Printer connected & ready");
-        }
-      } catch {}
+    if (!("serial" in navigator)) return;
+    const serial = (navigator as any).serial;
+
+    openGrantedPort();
+
+    const onDisconnect = (e: any) => {
+      if (portRef.current && e.target && e.target !== portRef.current) return;
+      portRef.current = null;
+      setPrinterConnected(false);
+      setPrinterStatus("No printer connected");
     };
-    tryAuto();
+    const onConnect = () => {
+      openGrantedPort();
+    };
+    serial.addEventListener?.("disconnect", onDisconnect);
+    serial.addEventListener?.("connect", onConnect);
+
+    // Poll every few seconds: if the port was lost, silently reopen it.
+    const reconnect = setInterval(() => {
+      if (!portRef.current) openGrantedPort();
+    }, 5000);
+
+    return () => {
+      clearInterval(reconnect);
+      serial.removeEventListener?.("disconnect", onDisconnect);
+      serial.removeEventListener?.("connect", onConnect);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Screen Wake Lock so the laptop doesn't sleep/dim while acting as the print station.
+  useEffect(() => {
+    const anyNav = navigator as any;
+    if (!anyNav.wakeLock) return;
+
+    const requestWakeLock = async () => {
+      try {
+        wakeLockRef.current = await anyNav.wakeLock.request("screen");
+        wakeLockRef.current.addEventListener?.("release", () => {
+          wakeLockRef.current = null;
+        });
+      } catch {
+        /* ignored — falls back to Windows power settings */
+      }
+    };
+
+    requestWakeLock();
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !wakeLockRef.current) requestWakeLock();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      try {
+        wakeLockRef.current?.release?.();
+      } catch {}
+      wakeLockRef.current = null;
+    };
   }, []);
 
   const connectPrinter = async () => {
@@ -316,11 +382,22 @@ export function LaptopBoard({
     setPrinterStatus(t("Printing..."));
 
     const writeBytes = async (bytes: number[]) => {
-      const writer = portRef.current.writable.getWriter();
       try {
-        await writer.write(new Uint8Array(bytes));
-      } finally {
-        writer.releaseLock();
+        const writer = portRef.current.writable.getWriter();
+        try {
+          await writer.write(new Uint8Array(bytes));
+        } finally {
+          writer.releaseLock();
+        }
+      } catch (err) {
+        // Port likely dropped — discard the stale handle so auto-reconnect can recover.
+        try {
+          await portRef.current?.close();
+        } catch {}
+        portRef.current = null;
+        setPrinterConnected(false);
+        setPrinterStatus("No printer connected");
+        throw err;
       }
     };
 
