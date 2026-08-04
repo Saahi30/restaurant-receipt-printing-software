@@ -1430,7 +1430,7 @@ export default function HomePage() {
                           }
                           className="w-full text-left disabled:cursor-not-allowed"
                         >
-                          <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-2">
+                          <div className="font-semibold text-[13px] leading-tight text-slate-900 line-clamp-2">
                             {localizedName(primary, lang)}
                           </div>
                           <div className="mt-0.5">
@@ -1484,7 +1484,7 @@ export default function HomePage() {
                       key={primary.id}
                       className="bg-white border border-slate-200 hover:border-amber-400 rounded-lg p-1.5 text-left transition-all flex flex-col"
                     >
-                      <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-2">
+                      <div className="font-semibold text-[13px] leading-tight text-slate-900 line-clamp-2">
                         {localizedName(primary, lang)}
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
