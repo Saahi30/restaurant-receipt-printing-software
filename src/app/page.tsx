@@ -22,6 +22,10 @@ import {
   Fingerprint,
   History,
   PrinterIcon,
+  Menu,
+  X,
+  LogOut,
+  Languages,
 } from "lucide-react";
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -137,6 +141,7 @@ export default function HomePage() {
 
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
   
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
@@ -1087,95 +1092,154 @@ export default function HomePage() {
 
   return (
     <div className={`h-screen bg-slate-100 text-slate-900 flex flex-col ${tab === "billing" ? "overflow-hidden" : "overflow-y-auto"}`}>
-      {/* Header */}
-      <header className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-md print:hidden shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="bg-amber-500 p-1.5 rounded-lg">
-              <Receipt className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-tight">{settings.restaurantName}</h1>
-              <p className="text-xs text-slate-400">{t("Billing & Thermal Printing")}</p>
-            </div>
+      {/* Header — brand only; nav/actions live in hamburger */}
+      <header className="bg-slate-900 text-white px-3 py-2.5 flex items-center justify-between gap-3 shadow-md print:hidden shrink-0 relative z-40">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="bg-amber-500 p-1.5 rounded-lg shrink-0">
+            <Receipt className="w-5 h-5 text-white" />
           </div>
-          
-          {/* Admin Link & Logout */}
-          <div className="flex items-center gap-3 ml-4">
-            {isAdmin && (
-              <Link href="/admin" className="hidden sm:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">
-                <Shield className="w-4 h-4" />{t("Admin Access")}</Link>
-            )}
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-400 border-l border-slate-700 pl-3">
-              <UserAvatar
-                name={currentUser.username}
-                avatar={currentUser.avatar}
-                size="sm"
-                editable
-                onChange={saveCurrentUserAvatar}
-              />
-              <span>{currentUser.username} ({currentUser.role})</span>
-            </div>
-            <button onClick={handleLogout} className="text-slate-400 hover:text-white text-xs underline">
-              {t("Logout")}
-            </button>
-            <button onClick={toggleLang} className="ml-2 bg-slate-700 hover:bg-slate-600 text-white text-xs px-2 py-1 rounded">
-              {lang === "en" ? "Aअ" : "EN"}
-            </button>
-          </div>
+          <h1 className="font-bold text-base sm:text-lg leading-tight truncate">{settings.restaurantName}</h1>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Tabs */}
-          <div className="flex bg-slate-800 rounded-lg p-1">
-            <button
-              onClick={() => setTab("billing")}
-              className={`px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5 ${
-                tab === "billing" ? "bg-amber-500 text-white" : "text-slate-300 hover:text-white"
-              }`}
-            >
-              <Receipt className="w-4 h-4" />{t("Billing")}</button>
-            {canViewPastBills && (
-              <button
-                onClick={openPastBills}
-                className={`px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5 ${
-                  tab === "pastBills" ? "bg-amber-500 text-white" : "text-slate-300 hover:text-white"
-                }`}
-              >
-                <History className="w-4 h-4" />{t("Past Bills")}</button>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => setTab("about")}
-                className={`px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-1.5 ${
-                  tab === "about" ? "bg-amber-500 text-white" : "text-slate-300 hover:text-white"
-                }`}
-              >
-                <SettingsIcon className="w-4 h-4" />{t("Settings")}</button>
-            )}
-          </div>
+        <button
+          type="button"
+          onClick={() => setNavMenuOpen((o) => !o)}
+          className="shrink-0 w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
+          aria-label={navMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={navMenuOpen}
+        >
+          {navMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
 
-          <div
-            className={`hidden md:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold ${
-              printerConnected
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                : "bg-slate-700 text-slate-300 border border-slate-600"
-            }`}
-          >
-            {printerConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-            <span>{printerConnected ? t("Printer connected & ready") : t("Browser print OK")}</span>
-          </div>
-          {printerConnected && (
+        {navMenuOpen && (
+          <>
             <button
               type="button"
-              onClick={stopPrinter}
-              className="hidden md:inline-flex text-xs font-bold px-2.5 py-1.5 rounded-full bg-red-600 hover:bg-red-500 text-white"
-              title="Stop blank paper feed"
-            >
-              {t("Stop printer")}
-            </button>
-          )}
-        </div>
+              className="fixed inset-0 z-40 bg-black/40"
+              aria-label="Close menu"
+              onClick={() => setNavMenuOpen(false)}
+            />
+            <nav className="absolute top-full right-2 mt-1 z-50 w-[min(18rem,calc(100vw-1rem))] rounded-xl bg-slate-900 border border-slate-700 shadow-xl overflow-hidden">
+              <div className="px-3 py-3 border-b border-slate-700 flex items-center gap-2">
+                <UserAvatar
+                  name={currentUser.username}
+                  avatar={currentUser.avatar}
+                  size="sm"
+                  editable
+                  onChange={saveCurrentUserAvatar}
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold truncate">{currentUser.username}</div>
+                  <div className="text-[11px] text-slate-400 truncate">{currentUser.role}</div>
+                </div>
+              </div>
+
+              <div className="p-1.5 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("billing");
+                    setNavMenuOpen(false);
+                  }}
+                  className={`w-full px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 ${
+                    tab === "billing" ? "bg-amber-500 text-white" : "text-slate-200 hover:bg-slate-800"
+                  }`}
+                >
+                  <Receipt className="w-4 h-4" />
+                  {t("Billing")}
+                </button>
+                {canViewPastBills && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openPastBills();
+                      setNavMenuOpen(false);
+                    }}
+                    className={`w-full px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 ${
+                      tab === "pastBills" ? "bg-amber-500 text-white" : "text-slate-200 hover:bg-slate-800"
+                    }`}
+                  >
+                    <History className="w-4 h-4" />
+                    {t("Past Bills")}
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("about");
+                      setNavMenuOpen(false);
+                    }}
+                    className={`w-full px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 ${
+                      tab === "about" ? "bg-amber-500 text-white" : "text-slate-200 hover:bg-slate-800"
+                    }`}
+                  >
+                    <SettingsIcon className="w-4 h-4" />
+                    {t("Settings")}
+                  </button>
+                )}
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setNavMenuOpen(false)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 text-slate-200 hover:bg-slate-800"
+                  >
+                    <Shield className="w-4 h-4" />
+                    {t("Admin Access")}
+                  </Link>
+                )}
+              </div>
+
+              <div className="border-t border-slate-700 p-1.5 space-y-0.5">
+                <div
+                  className={`mx-1.5 mb-1 flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg font-semibold ${
+                    printerConnected
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "bg-slate-800 text-slate-300"
+                  }`}
+                >
+                  {printerConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+                  <span className="truncate">
+                    {printerConnected ? t("Printer connected & ready") : t("Browser print OK")}
+                  </span>
+                </div>
+                {printerConnected && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopPrinter();
+                      setNavMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold text-red-300 hover:bg-red-950/50"
+                  >
+                    {t("Stop printer")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleLang();
+                  }}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 text-slate-200 hover:bg-slate-800"
+                >
+                  <Languages className="w-4 h-4" />
+                  {lang === "en" ? "Aअ / हिन्दी" : "EN / English"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNavMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 text-slate-200 hover:bg-slate-800"
+                >
+                  <LogOut className="w-4 h-4" />
+                  {t("Logout")}
+                </button>
+              </div>
+            </nav>
+          </>
+        )}
       </header>
 
       {printerError && (
@@ -1354,8 +1418,8 @@ export default function HomePage() {
                         key={groupKey}
                         className={`bg-white border rounded-lg p-1.5 text-left transition-all flex flex-col ${
                           pickerOpen
-                            ? "border-amber-400 shadow-sm col-span-2 aspect-auto min-h-[100px]"
-                            : "border-slate-200 hover:border-amber-400 aspect-square"
+                            ? "border-amber-400 shadow-sm col-span-2"
+                            : "border-slate-200 hover:border-amber-400"
                         } ${!selectedTable ? "opacity-50" : ""}`}
                       >
                         <button
@@ -1364,12 +1428,12 @@ export default function HomePage() {
                           onClick={() =>
                             setPricePickerKey((k) => (k === groupKey ? null : groupKey))
                           }
-                          className="flex-1 min-h-0 flex flex-col justify-between w-full text-left disabled:cursor-not-allowed"
+                          className="w-full text-left disabled:cursor-not-allowed"
                         >
-                          <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-3">
+                          <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-2">
                             {localizedName(primary, lang)}
                           </div>
-                          <div className="mt-auto">
+                          <div className="mt-0.5">
                             <div className="text-amber-600 font-bold font-mono text-xs">
                               {CURRENCY}{minPrice.toFixed(0)}+
                             </div>
@@ -1418,15 +1482,15 @@ export default function HomePage() {
                   return (
                     <div
                       key={primary.id}
-                      className="bg-white border border-slate-200 hover:border-amber-400 rounded-lg p-1.5 text-left transition-all flex flex-col aspect-square"
+                      className="bg-white border border-slate-200 hover:border-amber-400 rounded-lg p-1.5 text-left transition-all flex flex-col"
                     >
-                      <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-3 flex-1 min-h-0">
+                      <div className="font-semibold text-[11px] leading-tight text-slate-900 line-clamp-2">
                         {localizedName(primary, lang)}
                       </div>
-                      <div className="text-amber-600 font-bold font-mono text-xs mt-0.5">
-                        {CURRENCY}{primary.price.toFixed(0)}
-                      </div>
-                      <div className="flex items-center gap-1 mt-1">
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <div className="text-amber-600 font-bold font-mono text-xs shrink-0">
+                          {CURRENCY}{primary.price.toFixed(0)}
+                        </div>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1441,7 +1505,7 @@ export default function HomePage() {
                           }}
                           disabled={!selectedTable}
                           title={t("Qty")}
-                          className="w-8 h-6 flex-1 min-w-0 rounded border border-slate-200 text-center font-bold text-xs text-slate-900 focus:border-amber-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-7 h-6 flex-1 min-w-0 rounded border border-slate-200 text-center font-bold text-xs text-slate-900 focus:border-amber-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <button
                           type="button"
