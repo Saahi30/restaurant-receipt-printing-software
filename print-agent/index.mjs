@@ -1,4 +1,5 @@
 import "dotenv/config";
+import dns from "node:dns";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,6 +7,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
+
+// Prefer IPv4. Many restaurant Wi‑Fi networks advertise broken IPv6; Node's
+ // default dual-stack lookup then times out as ETIMEDOUT / AggregateError.
+dns.setDefaultResultOrder("ipv4first");
 
 /* ------------------------------------------------------------------ */
 /* Config                                                             */
@@ -61,7 +66,11 @@ function formatNetworkError(err, url) {
     cur = cur.cause;
   }
   const detail = parts.length ? parts.join(" → ") : "unknown network error";
-  return `Cannot reach ${url} (${detail}). Check APP_BASE_URL, Wi-Fi, DNS, and firewall for node.exe.`;
+  const hint =
+    /ETIMEDOUT|ECONNREFUSED|ENETUNREACH|AggregateError/i.test(detail)
+      ? " If a browser on this laptop can open the site, allow node.exe through Windows Firewall / antivirus, or try another Wi‑Fi / hotspot."
+      : " Check APP_BASE_URL, Wi-Fi, DNS, and firewall for node.exe.";
+  return `Cannot reach ${url} (${detail}).${hint}`;
 }
 
 async function api(path, method = "GET", body) {

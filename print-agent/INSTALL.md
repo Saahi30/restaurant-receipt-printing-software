@@ -147,7 +147,8 @@ only one is active:
 - **Phone still shows a print dialog:** the app update that sends bills to the queue must be
   deployed to the website first. After it's live, fully close and reopen the phone browser tab.
 - **`Heartbeat failed` / `Poll error` / `Cannot reach ...` (fetch failed):** the agent cannot
-  reach the website over HTTPS. This is not a printer problem.
+  reach the website over HTTPS. This is not a printer problem. (A `TEST OK` receipt can still
+  print — that only proves USB/printer works.)
   1. Open `print-agent\.env` and confirm:
      ```
      APP_BASE_URL=https://mahankalfoodpark.netlify.app
@@ -157,7 +158,13 @@ only one is active:
      ```powershell
      curl https://mahankalfoodpark.netlify.app/api/health
      ```
-     You should see `{"ok":true}`. If that fails, fix Wi‑Fi / DNS / firewall first.
-  3. If `curl` works but the agent still fails, allow `node.exe` through Windows Firewall /
-     antivirus, then restart the agent (`START-PRINTING.bat` or the NSSM service).
-  4. Confirm the startup log line shows `App: https://mahankalfoodpark.netlify.app`.
+     You should see `{"ok":true}`. If that fails, fix Wi‑Fi / DNS first (try phone hotspot).
+  3. If the log shows **`ETIMEDOUT`** / **`AggregateError`**: Node cannot open a TCP
+     connection to Netlify. Common on restaurant Wi‑Fi. The agent prefers IPv4 automatically;
+     if it still times out:
+     - Allow **Node.js JavaScript Runtime** / `node.exe` through Windows Firewall (Private + Public).
+     - Temporarily disable antivirus web shield and retry.
+     - Switch the laptop to phone hotspot and restart the agent — if hotspot works, the venue
+       Wi‑Fi is blocking outbound HTTPS for Node.
+  4. Restart the agent (`START-PRINTING.bat` or the NSSM service) and confirm the startup log
+     shows `App: https://mahankalfoodpark.netlify.app` and `App reachable: .../api/health`.
