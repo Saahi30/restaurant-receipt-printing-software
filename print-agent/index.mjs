@@ -49,23 +49,72 @@ function apiHeaders() {
   return h;
 }
 
+/** Unwrap Node fetch / undici causes into a readable network error string. */
+function formatNetworkError(err, url) {
+  const parts = [];
+  let cur = err;
+  for (let i = 0; i < 4 && cur; i++) {
+    const code = cur.code || cur.errno;
+    const msg = cur.message || String(cur);
+    if (code && !parts.includes(code)) parts.push(code);
+    if (msg && !parts.includes(msg)) parts.push(msg);
+    cur = cur.cause;
+  }
+  const detail = parts.length ? parts.join(" → ") : "unknown network error";
+  return `Cannot reach ${url} (${detail}). Check APP_BASE_URL, Wi-Fi, DNS, and firewall for node.exe.`;
+}
+
 async function api(path, method = "GET", body) {
-  const res = await fetch(`${APP_BASE_URL}${path}`, {
-    method,
-    headers: apiHeaders(),
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const url = `${APP_BASE_URL}${path}`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: apiHeaders(),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error(formatNetworkError(e, url));
+  }
   const text = await res.text();
   let json;
   try {
     json = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error(`Non-JSON response from ${path}: ${text.slice(0, 200)}`);
+    throw new Error(`Non-JSON response from ${url}: ${text.slice(0, 200)}`);
   }
   if (!res.ok) {
-    throw new Error(json.error || `HTTP ${res.status} on ${path}`);
+    throw new Error(json.error || `HTTP ${res.status} on ${url}`);
   }
   return json;
+}
+
+/** Probe APP_BASE_URL before polling. Logs a clear warning but does not exit. */
+async function checkConnectivity() {
+  const url = `${APP_BASE_URL}/api/health`;
+  try {
+    const res = await fetch(url, { method: "GET", headers: apiHeaders() });
+    const text = await res.text();
+    let json = {};
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok || json.ok !== true) {
+      warn(
+        `App health check failed for ${url} (HTTP ${res.status}). ` +
+          `Printing will not work until the deployed app is reachable.`
+      );
+      return false;
+    }
+    log(`App reachable: ${url}`);
+    return true;
+  } catch (e) {
+    warn(formatNetworkError(e, url));
+    warn("Printing will not work until this laptop can reach APP_BASE_URL. Will keep retrying.");
+    return false;
+  }
 }
 
 /** POST receipt data to the app's ESC/POS generator and get printable bytes. */
@@ -420,6 +469,8 @@ async function main() {
   log(`Poll:     every ${POLL_MS}ms`);
 
   await printer.ensureConnected();
+
+  await checkConnectivity();
 
   if ((process.env.TEST_PRINT_ON_START || "true").toLowerCase() !== "false") {
     await testPrint();
