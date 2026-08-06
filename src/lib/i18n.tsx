@@ -402,6 +402,15 @@ export const translations: Record<string, Record<Language, string>> = {
   "Overdue": { en: "Overdue", hi: "समय बीता" },
   "No active tokens.": { en: "No active tokens.", hi: "कोई सक्रिय टोकन नहीं।" },
   "Unpaid": { en: "Unpaid", hi: "बकाया" },
+  "Draft Tokens": { en: "Draft Tokens", hi: "ड्राफ्ट टोकन" },
+  "Draft": { en: "Draft", hi: "ड्राफ्ट" },
+  "Auto-closed after 180 minutes without handover": {
+    en: "Auto-closed after 180 minutes without handover",
+    hi: "180 मिनट में हैंडओवर न होने पर स्वतः बंद",
+  },
+  "No draft tokens.": { en: "No draft tokens.", hi: "कोई ड्राफ्ट टोकन नहीं।" },
+  "Waited": { en: "Waited", hi: "प्रतीक्षा" },
+  "min": { en: "min", hi: "मिनट" },
 };
 
 interface LanguageContextType {

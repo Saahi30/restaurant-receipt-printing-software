@@ -1,5 +1,7 @@
 import { getSupabase } from "@/lib/supabase";
 import {
+  TOKEN_AUTO_CLOSE_MINUTES,
+  TOKEN_AUTO_CLOSE_NOTE,
   TOKEN_SLA_MINUTES,
   type TakeawayToken,
   type TokenItem,
@@ -7,7 +9,11 @@ import {
 } from "@/lib/token-types";
 
 export type { TakeawayToken, TokenItem, TokenStatus };
-export { TOKEN_SLA_MINUTES, formatTokenCountdown } from "@/lib/token-types";
+export {
+  TOKEN_SLA_MINUTES,
+  TOKEN_AUTO_CLOSE_MINUTES,
+  formatTokenCountdown,
+} from "@/lib/token-types";
 
 const ACTIVE: TokenStatus[] = ["preparing", "ready"];
 
@@ -51,16 +57,49 @@ export function todayIstDate(): string {
   }).format(new Date());
 }
 
-export async function listTokens(opts?: { activeOnly?: boolean }): Promise<TakeawayToken[]> {
+/**
+ * Move preparing/ready tokens older than TOKEN_AUTO_CLOSE_MINUTES into status "draft".
+ * Runs opportunistically whenever tokens are listed (Admin polls every 5s).
+ */
+export async function expireStaleTokensToDraft(): Promise<number> {
+  const supabase = getSupabase();
+  const cutoff = new Date(Date.now() - TOKEN_AUTO_CLOSE_MINUTES * 60_000).toISOString();
+
+  const { data, error } = await supabase
+    .from("takeaway_tokens")
+    .update({
+      status: "draft",
+      notes: TOKEN_AUTO_CLOSE_NOTE,
+      cancelled_at: new Date().toISOString(),
+    })
+    .in("status", ACTIVE)
+    .lt("created_at", cutoff)
+    .select("id");
+
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+export async function listTokens(opts?: {
+  activeOnly?: boolean;
+  draftOnly?: boolean;
+}): Promise<TakeawayToken[]> {
+  // Always sweep stale actives into draft before returning lists.
+  await expireStaleTokensToDraft();
+
   const supabase = getSupabase();
   let q = supabase.from("takeaway_tokens").select("*").order("created_at", { ascending: false });
-  if (opts?.activeOnly) {
+
+  if (opts?.draftOnly) {
+    q = q.eq("status", "draft");
+  } else if (opts?.activeOnly) {
     q = q.in("status", ACTIVE);
   } else {
     // Today + still-active from earlier (safety)
     const dayStart = `${todayIstDate()}T00:00:00+05:30`;
     q = q.or(`created_at.gte.${dayStart},status.in.(${ACTIVE.join(",")})`);
   }
+
   const { data, error } = await q.limit(200);
   if (error) throw error;
   return (data || []).map(rowToToken);
@@ -145,7 +184,9 @@ export async function updateToken(
       // Handover implies payment settled at counter
       if (update.paymentCollected !== false) patch.payment_collected = true;
     }
-    if (update.status === "cancelled") patch.cancelled_at = new Date().toISOString();
+    if (update.status === "cancelled" || update.status === "draft") {
+      patch.cancelled_at = new Date().toISOString();
+    }
   }
 
   const { data, error } = await supabase

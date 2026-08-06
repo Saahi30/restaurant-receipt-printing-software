@@ -1,4 +1,4 @@
-export type TokenStatus = "preparing" | "ready" | "handed_over" | "cancelled";
+export type TokenStatus = "preparing" | "ready" | "handed_over" | "cancelled" | "draft";
 
 export type TokenItem = {
   name: string;
@@ -31,7 +31,13 @@ export type TakeawayToken = {
   overdue: boolean;
 };
 
+/** Kitchen pickup countdown shown in Admin (not the auto-close window). */
 export const TOKEN_SLA_MINUTES = 25;
+
+/** Active tokens older than this are auto-closed into status "draft". */
+export const TOKEN_AUTO_CLOSE_MINUTES = 180;
+
+export const TOKEN_AUTO_CLOSE_NOTE = "Auto-closed after 180 minutes wait";
 
 export function formatTokenCountdown(remainingMs: number): string {
   const overdue = remainingMs < 0;
