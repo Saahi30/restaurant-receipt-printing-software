@@ -168,3 +168,9 @@ only one is active:
        Wi‑Fi is blocking outbound HTTPS for Node.
   4. Restart the agent (`START-PRINTING.bat` or the NSSM service) and confirm the startup log
      shows `App: https://mahankalfoodpark.netlify.app` and `App reachable: .../api/health`.
+  5. **PowerShell `curl` works but Node `fetch` times out:** add this line to `.env` and restart:
+     ```
+     HTTP_TRANSPORT=curl
+     ```
+     (With `HTTP_TRANSPORT=auto`, the agent also falls back to `curl.exe` automatically after
+     the first Node timeout.)

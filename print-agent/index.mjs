@@ -48,6 +48,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* HTTP helpers (talk to the deployed app's existing APIs)            */
 /* ------------------------------------------------------------------ */
 
+// "auto" = Node fetch, then curl.exe on Windows after a network failure.
+// "curl"  = always use curl.exe (use this when Node fetch times out but PowerShell works).
+// "fetch" = Node fetch only.
+const HTTP_TRANSPORT = (process.env.HTTP_TRANSPORT || "auto").trim().toLowerCase();
+let activeTransport = HTTP_TRANSPORT === "curl" ? "curl" : "fetch";
+
 function apiHeaders() {
   const h = { "Content-Type": "application/json" };
   if (PRINT_AGENT_KEY) h["x-print-agent-key"] = PRINT_AGENT_KEY;
@@ -68,32 +74,131 @@ function formatNetworkError(err, url) {
   const detail = parts.length ? parts.join(" → ") : "unknown network error";
   const hint =
     /ETIMEDOUT|ECONNREFUSED|ENETUNREACH|AggregateError/i.test(detail)
-      ? " If a browser on this laptop can open the site, allow node.exe through Windows Firewall / antivirus, or try another Wi‑Fi / hotspot."
+      ? " If PowerShell curl works but Node does not, set HTTP_TRANSPORT=curl in .env (uses curl.exe)."
       : " Check APP_BASE_URL, Wi-Fi, DNS, and firewall for node.exe.";
   return `Cannot reach ${url} (${detail}).${hint}`;
 }
 
+function isNetworkFailure(err) {
+  const s = `${err?.message || err} ${err?.cause || ""}`;
+  return /ETIMEDOUT|ENETUNREACH|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|fetch failed|AggregateError|curl:/i.test(s);
+}
+
+/** Windows WinHTTP often works when Node's TCP stack is blocked; use real curl.exe. */
+function requestViaCurl(url, method, bodyText, headers) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "-sS",
+      "-X",
+      method,
+      url,
+      "--connect-timeout",
+      "15",
+      "--max-time",
+      "60",
+      "-w",
+      "\n__HTTP_STATUS__:%{http_code}",
+    ];
+    for (const [k, v] of Object.entries(headers || {})) {
+      args.push("-H", `${k}: ${v}`);
+    }
+    if (bodyText !== undefined) {
+      args.push("--data-binary", bodyText);
+    }
+
+    const child = spawn("curl.exe", args, { windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("error", (e) =>
+      reject(new Error(`curl.exe failed to start (${e.message}). Is curl installed on PATH?`))
+    );
+    child.on("close", (code) => {
+      const marker = "\n__HTTP_STATUS__:";
+      const idx = stdout.lastIndexOf(marker);
+      if (idx < 0) {
+        reject(
+          new Error(
+            `curl.exe failed (exit ${code}): ${(stderr || stdout || "no output").trim().slice(0, 300)}`
+          )
+        );
+        return;
+      }
+      const text = stdout.slice(0, idx);
+      const status = parseInt(stdout.slice(idx + marker.length).trim(), 10);
+      if (!Number.isFinite(status)) {
+        reject(new Error(`curl.exe returned invalid status in: ${stdout.slice(-80)}`));
+        return;
+      }
+      if (code !== 0 && status === 0) {
+        reject(new Error(`curl.exe failed (exit ${code}): ${stderr.trim() || "network error"}`));
+        return;
+      }
+      resolve({ status, text });
+    });
+  });
+}
+
+async function requestViaFetch(url, method, bodyText, headers) {
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: bodyText,
+  });
+  return { status: res.status, text: await res.text() };
+}
+
+async function httpRequest(url, method, bodyObj) {
+  const headers = apiHeaders();
+  const bodyText = bodyObj === undefined ? undefined : JSON.stringify(bodyObj);
+
+  const tryCurl = async (reason) => {
+    if (process.platform !== "win32") {
+      throw new Error(reason || "curl.exe fallback is only available on Windows");
+    }
+    if (reason) warn(reason);
+    const result = await requestViaCurl(url, method, bodyText, headers);
+    if (activeTransport !== "curl") {
+      activeTransport = "curl";
+      log("Switched API transport to curl.exe (Node fetch is blocked on this network).");
+    }
+    return result;
+  };
+
+  if (activeTransport === "curl" || HTTP_TRANSPORT === "curl") {
+    return tryCurl();
+  }
+
+  try {
+    return await requestViaFetch(url, method, bodyText, headers);
+  } catch (e) {
+    if (HTTP_TRANSPORT !== "fetch" && process.platform === "win32" && isNetworkFailure(e)) {
+      return tryCurl(
+        `Node fetch failed (${e.code || e.message}); retrying with curl.exe...`
+      );
+    }
+    throw e;
+  }
+}
+
 async function api(path, method = "GET", body) {
   const url = `${APP_BASE_URL}${path}`;
-  let res;
+  let status;
+  let text;
   try {
-    res = await fetch(url, {
-      method,
-      headers: apiHeaders(),
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    ({ status, text } = await httpRequest(url, method, body));
   } catch (e) {
     throw new Error(formatNetworkError(e, url));
   }
-  const text = await res.text();
   let json;
   try {
     json = text ? JSON.parse(text) : {};
   } catch {
     throw new Error(`Non-JSON response from ${url}: ${text.slice(0, 200)}`);
   }
-  if (!res.ok) {
-    throw new Error(json.error || `HTTP ${res.status} on ${url}`);
+  if (status < 200 || status >= 300) {
+    throw new Error(json.error || `HTTP ${status} on ${url}`);
   }
   return json;
 }
@@ -102,22 +207,21 @@ async function api(path, method = "GET", body) {
 async function checkConnectivity() {
   const url = `${APP_BASE_URL}/api/health`;
   try {
-    const res = await fetch(url, { method: "GET", headers: apiHeaders() });
-    const text = await res.text();
+    const { status, text } = await httpRequest(url, "GET");
     let json = {};
     try {
       json = text ? JSON.parse(text) : {};
     } catch {
       /* ignore */
     }
-    if (!res.ok || json.ok !== true) {
+    if (status < 200 || status >= 300 || json.ok !== true) {
       warn(
-        `App health check failed for ${url} (HTTP ${res.status}). ` +
+        `App health check failed for ${url} (HTTP ${status}). ` +
           `Printing will not work until the deployed app is reachable.`
       );
       return false;
     }
-    log(`App reachable: ${url}`);
+    log(`App reachable via ${activeTransport}: ${url}`);
     return true;
   } catch (e) {
     warn(formatNetworkError(e, url));
@@ -469,6 +573,7 @@ async function heartbeat() {
 async function main() {
   log("Restaurant print agent starting...");
   log(`App:      ${APP_BASE_URL}`);
+  log(`HTTP:     ${HTTP_TRANSPORT}${HTTP_TRANSPORT === "auto" ? " (curl.exe fallback on Windows)" : ""}`);
   log(`Mode:     ${PRINT_MODE}`);
   if (PRINT_MODE === "serial") {
     log(`Printer:  ${SERIAL_PATH || "(auto-detect)"} @ ${BAUD_RATE} baud`);
