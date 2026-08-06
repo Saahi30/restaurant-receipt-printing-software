@@ -76,6 +76,7 @@ export default function AdminPage() {
   const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
 
   const [tokens, setTokens] = useState<TakeawayToken[]>([]);
+  const [draftTokens, setDraftTokens] = useState<TakeawayToken[]>([]);
   const [tokensLoading, setTokensLoading] = useState(false);
   const [tokenBusyId, setTokenBusyId] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -166,10 +167,17 @@ export default function AdminPage() {
   const loadTokens = async () => {
     setTokensLoading(true);
     try {
-      const res = await fetch("/api/tokens?active=1");
-      if (res.ok) {
-        const json = await res.json();
+      const [activeRes, draftRes] = await Promise.all([
+        fetch("/api/tokens?active=1"),
+        fetch("/api/tokens?draft=1"),
+      ]);
+      if (activeRes.ok) {
+        const json = await activeRes.json();
         setTokens(json.tokens || []);
+      }
+      if (draftRes.ok) {
+        const json = await draftRes.json();
+        setDraftTokens(json.tokens || []);
       }
     } catch (e) {
       console.error(e);
@@ -627,6 +635,100 @@ export default function AdminPage() {
                   <p className="text-sm text-slate-500 text-center py-8 flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin" /> Loading…
                   </p>
+                )}
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                  <Ticket className="w-5 h-5 text-slate-400" />
+                  {t("Draft Tokens")}
+                  {draftTokens.length > 0 && (
+                    <span className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
+                      {draftTokens.length}
+                    </span>
+                  )}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {t("Auto-closed after 180 minutes without handover")}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {draftTokens.map((tok) => {
+                  const itemSummary = (tok.items || [])
+                    .map((i) => `${i.quantity}× ${i.name}`)
+                    .join(", ");
+                  const waitMins = Math.max(
+                    0,
+                    Math.round((Date.now() - new Date(tok.createdAt).getTime()) / 60_000)
+                  );
+                  return (
+                    <div
+                      key={tok.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col sm:flex-row sm:items-center gap-4"
+                    >
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="shrink-0 w-16 h-16 rounded-xl bg-slate-500 text-white flex flex-col items-center justify-center">
+                          <span className="text-[9px] font-bold tracking-widest opacity-70">TOKEN</span>
+                          <span className="text-xl font-extrabold leading-none">{tok.tokenLabel}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-400 text-white">
+                              {t("Draft")}
+                            </span>
+                            {!tok.paymentCollected && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                                {t("Unpaid")}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-800 mt-1 truncate">
+                            {tok.customerName || tok.orderNumber || "—"}
+                          </div>
+                          <div className="text-xs text-slate-500 truncate">{itemSummary || "—"}</div>
+                          <div className="text-sm font-mono font-bold text-slate-800 mt-0.5">
+                            {tok.currency}
+                            {Number(tok.totalAmount).toFixed(2)} · {tok.paymentMethod}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {t("Waited")} {waitMins} {t("min")}
+                            {tok.notes ? ` · ${tok.notes}` : ""}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={tokenBusyId === tok.id}
+                          onClick={() =>
+                            tokenAction(tok.id, {
+                              status: "handed_over",
+                              paymentCollected: true,
+                            })
+                          }
+                          className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-50"
+                        >
+                          {tok.paymentCollected ? t("Hand Over") : t("Collect & Hand Over")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={tokenBusyId === tok.id}
+                          onClick={() => tokenAction(tok.id, { status: "cancelled" })}
+                          className="px-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {t("Cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {draftTokens.length === 0 && !tokensLoading && (
+                  <p className="text-sm text-slate-500 text-center py-6">{t("No draft tokens.")}</p>
                 )}
               </div>
             </section>
