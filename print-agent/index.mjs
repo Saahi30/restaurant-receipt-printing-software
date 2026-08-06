@@ -9,7 +9,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 
 // Prefer IPv4. Many restaurant Wi‑Fi networks advertise broken IPv6; Node's
- // default dual-stack lookup then times out as ETIMEDOUT / AggregateError.
+// default dual-stack lookup then times out as ETIMEDOUT / AggregateError.
 dns.setDefaultResultOrder("ipv4first");
 
 /* ------------------------------------------------------------------ */
