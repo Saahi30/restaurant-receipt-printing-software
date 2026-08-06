@@ -146,3 +146,18 @@ only one is active:
 - **Admin shows station Offline:** the laptop lost internet, or the agent isn't running.
 - **Phone still shows a print dialog:** the app update that sends bills to the queue must be
   deployed to the website first. After it's live, fully close and reopen the phone browser tab.
+- **`Heartbeat failed` / `Poll error` / `Cannot reach ...` (fetch failed):** the agent cannot
+  reach the website over HTTPS. This is not a printer problem.
+  1. Open `print-agent\.env` and confirm:
+     ```
+     APP_BASE_URL=https://mahankalfoodpark.netlify.app
+     ```
+     (https, no trailing slash — not a vercel.app placeholder).
+  2. On the laptop, in PowerShell:
+     ```powershell
+     curl https://mahankalfoodpark.netlify.app/api/health
+     ```
+     You should see `{"ok":true}`. If that fails, fix Wi‑Fi / DNS / firewall first.
+  3. If `curl` works but the agent still fails, allow `node.exe` through Windows Firewall /
+     antivirus, then restart the agent (`START-PRINTING.bat` or the NSSM service).
+  4. Confirm the startup log line shows `App: https://mahankalfoodpark.netlify.app`.
