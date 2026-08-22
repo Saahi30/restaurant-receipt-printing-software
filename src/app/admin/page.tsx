@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Save, Plus, Trash2, ArrowLeft, RefreshCw, CheckCircle2, FileText, Database, Printer, Calendar, PrinterIcon, UtensilsCrossed, IndianRupee, XCircle, Ticket } from "lucide-react";
 import Link from "next/link";
 import { PrintableReceipt } from "@/components/PrintableReceipt";
+import { BrandLogo } from "@/components/BrandLogo";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
@@ -427,7 +428,8 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 pb-20">
       <header className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shadow-md print:hidden">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <BrandLogo size={36} className="rounded-lg ring-1 ring-amber-400/40" />
           <Link href="/" className="text-slate-300 hover:text-white flex items-center gap-1 font-semibold text-sm">
             <ArrowLeft className="w-4 h-4" /> {t("Back to POS")}
           </Link>

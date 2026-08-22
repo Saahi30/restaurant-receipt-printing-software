@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
+import { BrandLogo } from "@/components/BrandLogo";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
@@ -764,9 +765,12 @@ export function LaptopBoard({
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
       <header className="px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="font-bold text-xl">{settings.restaurantName}</h1>
-          <p className="text-xs text-slate-400">{t("Laptop Print Station")}</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <BrandLogo size={44} className="rounded-lg ring-1 ring-amber-400/40" />
+          <div>
+            <h1 className="font-bold text-xl">{settings.restaurantName}</h1>
+            <p className="text-xs text-slate-400">{t("Laptop Print Station")}</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div

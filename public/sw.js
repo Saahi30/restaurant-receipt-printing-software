@@ -1,6 +1,6 @@
 /* Minimal service worker — enables install-to-home-screen on Android Chrome */
-const CACHE = "mahankal-pos-v1";
-const PRECACHE = ["/", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
+const CACHE = "mahankal-pos-v2";
+const PRECACHE = ["/", "/logo.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
