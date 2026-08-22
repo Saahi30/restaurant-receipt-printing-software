@@ -5,7 +5,7 @@ REM Windows awake. Put a shortcut to this in shell:startup to auto-run on boot.
 REM
 REM EDIT the STATION_URL below to your deployed app's laptop page.
 
-set "STATION_URL=https://your-app.vercel.app/"
+set "STATION_URL=https://mahankalfoodpark.vercel.app/"
 
 REM Keep the machine awake while it acts as the print station.
 powercfg /change standby-timeout-ac 0 >nul 2>nul

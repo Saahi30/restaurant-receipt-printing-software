@@ -73,7 +73,7 @@ notepad .env
 ```
 Make sure these lines are set (change the printer name to the one from Step 2):
 ```
-APP_BASE_URL=https://mahankalfoodpark.netlify.app
+APP_BASE_URL=https://mahankalfoodpark.vercel.app
 PRINT_MODE=raw
 WINDOWS_PRINTER_NAME=POS80 Printer
 ```
