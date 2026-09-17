@@ -1,5 +1,5 @@
 /* Minimal service worker — enables install-to-home-screen on Android Chrome */
-const CACHE = "mahankal-pos-v2";
+const CACHE = "mahankal-pos-v3";
 const PRECACHE = ["/", "/logo.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -21,14 +21,16 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
-  // Never cache API / Supabase — always network
+  // Never intercept other origins — Chrome speech recognition talks to Google
+  // and fails with a "network" error if the SW handles those requests.
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
   event.respondWith(
     fetch(req)
       .then((res) => {
         const copy = res.clone();
-        if (res.ok && url.origin === self.location.origin) {
+        if (res.ok) {
           caches.open(CACHE).then((cache) => cache.put(req, copy));
         }
         return res;

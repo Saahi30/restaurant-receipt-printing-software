@@ -154,8 +154,8 @@ export const translations: Record<string, Record<Language, string>> = {
     hi: "माइक की अनुमति नहीं मिली। अनुमति दें और फिर कोशिश करें।",
   },
   "Voice needs internet": {
-    en: "Voice needs an internet connection.",
-    hi: "आवाज़ के लिए इंटरनेट चाहिए।",
+    en: "Voice could not start. Tap the mic and allow it, or type the order below.",
+    hi: "आवाज़ चालू नहीं हुई। माइक पर टैप करें और अनुमति दें, या नीचे ऑर्डर लिखें।",
   },
   "Could not start microphone": {
     en: "Could not start the microphone.",

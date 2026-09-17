@@ -36,10 +36,15 @@ type Props = {
   onApprove: (bill: VoiceBillApproval) => void | Promise<void>;
 };
 
+export type VoiceBillHandle = {
+  start: () => void;
+};
+
 type SpeechRec = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives?: number;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -69,17 +74,20 @@ function toDraft(lines: VoiceParsedLine[]) {
   }));
 }
 
-export function VoiceBillModal({
-  open,
-  onClose,
-  menuItems,
-  tables,
-  selectedTable,
-  currency,
-  lang,
-  t,
-  onApprove,
-}: Props) {
+export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function VoiceBillModal(
+  {
+    open,
+    onClose,
+    menuItems,
+    tables,
+    selectedTable,
+    currency,
+    lang,
+    t,
+    onApprove,
+  },
+  ref
+) {
   const supported = useMemo(() => isSpeechRecognitionSupported(), []);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -92,35 +100,169 @@ export function VoiceBillModal({
   const [typed, setTyped] = useState("");
   const [approving, setApproving] = useState(false);
 
+  const wantListenRef = useRef(false);
   const listeningRef = useRef(false);
   const finalTextRef = useRef("");
   const recRef = useRef<SpeechRec | null>(null);
   const tablePickedRef = useRef(false);
   const paymentPickedRef = useRef(false);
   const namePickedRef = useRef(false);
+  const fatalErrorRef = useRef(false);
+  const langTryRef = useRef<"hi-IN" | "en-IN">("hi-IN");
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const parsed = useMemo(
     () => parseVoiceOrder(transcript, menuItems, tables),
     [transcript, menuItems, tables]
   );
 
+  const stopListening = () => {
+    wantListenRef.current = false;
+    listeningRef.current = false;
+    setListening(false);
+    try {
+      recRef.current?.abort();
+    } catch {
+      /* already stopped */
+    }
+  };
+
+  const beginRecognition = () => {
+    if (!wantListenRef.current) return;
+    try {
+      recRef.current?.abort();
+    } catch {
+      /* ignore */
+    }
+    const rec = createRecognition();
+    if (!rec) {
+      wantListenRef.current = false;
+      listeningRef.current = false;
+      setListening(false);
+      setError(tRef.current("Voice needs Chrome"));
+      return;
+    }
+    recRef.current = rec;
+    rec.lang = langTryRef.current;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onresult = (event) => {
+      fatalErrorRef.current = false;
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const piece = event.results[i][0]?.transcript || "";
+        if (event.results[i].isFinal) {
+          finalTextRef.current = `${finalTextRef.current} ${piece}`.trim();
+        } else {
+          interim += piece;
+        }
+      }
+      setTranscript(`${finalTextRef.current} ${interim}`.trim());
+    };
+
+    rec.onerror = (event) => {
+      const code = event.error || "";
+      if (code === "no-speech" || code === "aborted") return;
+      if (code === "not-allowed" || code === "service-not-allowed") {
+        fatalErrorRef.current = true;
+        wantListenRef.current = false;
+        listeningRef.current = false;
+        setListening(false);
+        setError(tRef.current("Mic permission denied"));
+        return;
+      }
+      if (code === "network") {
+        // Chrome fires this if the SW intercepts Google STT, or when start()
+        // is not in a tap. Retry once with en-IN, then stop the restart loop.
+        if (langTryRef.current === "hi-IN") {
+          langTryRef.current = "en-IN";
+          return;
+        }
+        fatalErrorRef.current = true;
+        wantListenRef.current = false;
+        listeningRef.current = false;
+        setListening(false);
+        setError(tRef.current("Voice needs internet"));
+        return;
+      }
+      if (code === "audio-capture") {
+        fatalErrorRef.current = true;
+        wantListenRef.current = false;
+        listeningRef.current = false;
+        setListening(false);
+        setError(tRef.current("Could not start microphone"));
+      }
+    };
+
+    rec.onend = () => {
+      listeningRef.current = false;
+      if (!wantListenRef.current || fatalErrorRef.current) {
+        setListening(false);
+        return;
+      }
+      window.setTimeout(() => {
+        if (wantListenRef.current && !fatalErrorRef.current) beginRecognition();
+      }, 250);
+    };
+
+    try {
+      rec.start();
+      listeningRef.current = true;
+      setListening(true);
+    } catch {
+      wantListenRef.current = false;
+      listeningRef.current = false;
+      setListening(false);
+      setError(tRef.current("Could not start microphone"));
+    }
+  };
+
+  const startListening = () => {
+    setError("");
+    fatalErrorRef.current = false;
+    langTryRef.current = "hi-IN";
+    wantListenRef.current = true;
+    beginRecognition();
+  };
+
+  const startListeningRef = useRef(startListening);
+  startListeningRef.current = startListening;
+
+  React.useImperativeHandle(ref, () => ({
+    start: () => startListeningRef.current(),
+  }));
+
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      setTyped("");
+      setApproving(false);
+      tablePickedRef.current = false;
+      paymentPickedRef.current = false;
+      namePickedRef.current = false;
+      setTableId(selectedTable);
+      setPaymentMethod("Cash");
+      setCustomerName("");
+      if (!listeningRef.current) {
+        setTranscript("");
+        setDraftLines([]);
+        setUnmatched([]);
+        setError("");
+        setListening(false);
+        finalTextRef.current = "";
+      }
+      return;
+    }
+    stopListening();
     setTranscript("");
     setTyped("");
     setError("");
     setDraftLines([]);
     setUnmatched([]);
-    setListening(false);
     setApproving(false);
     finalTextRef.current = "";
-    tablePickedRef.current = false;
-    paymentPickedRef.current = false;
-    namePickedRef.current = false;
-    setTableId(selectedTable);
-    setPaymentMethod("Cash");
-    setCustomerName("");
-    // Reset only when the sheet opens; table is copied from the current POS selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -140,77 +282,9 @@ export function VoiceBillModal({
     }
   }, [open, parsed]);
 
-  const stopListening = () => {
-    listeningRef.current = false;
-    setListening(false);
-    try {
-      recRef.current?.stop();
-    } catch {
-      /* already stopped */
-    }
-  };
-
-  const startListening = () => {
-    setError("");
-    const rec = createRecognition();
-    if (!rec) {
-      setError(t("Voice needs Chrome"));
-      return;
-    }
-    recRef.current = rec;
-    rec.lang = "hi-IN";
-    rec.continuous = true;
-    rec.interimResults = true;
-    listeningRef.current = true;
-    setListening(true);
-
-    rec.onresult = (event) => {
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const piece = event.results[i][0]?.transcript || "";
-        if (event.results[i].isFinal) {
-          finalTextRef.current = `${finalTextRef.current} ${piece}`.trim();
-        } else {
-          interim += piece;
-        }
-      }
-      setTranscript(`${finalTextRef.current} ${interim}`.trim());
-    };
-
-    rec.onerror = (event) => {
-      const code = event.error || "";
-      if (code === "not-allowed" || code === "service-not-allowed") {
-        listeningRef.current = false;
-        setListening(false);
-        setError(t("Mic permission denied"));
-      } else if (code === "network") {
-        setError(t("Voice needs internet"));
-      } else if (code !== "no-speech" && code !== "aborted") {
-        setError(code);
-      }
-    };
-
-    rec.onend = () => {
-      if (!listeningRef.current) return;
-      try {
-        rec.start();
-      } catch {
-        listeningRef.current = false;
-        setListening(false);
-      }
-    };
-
-    try {
-      rec.start();
-    } catch {
-      listeningRef.current = false;
-      setListening(false);
-      setError(t("Could not start microphone"));
-    }
-  };
-
   useEffect(() => {
     return () => {
+      wantListenRef.current = false;
       listeningRef.current = false;
       try {
         recRef.current?.abort();
@@ -219,19 +293,6 @@ export function VoiceBillModal({
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!open) {
-      stopListening();
-      return;
-    }
-    if (!supported) return;
-    const id = window.setTimeout(() => startListening(), 250);
-    return () => {
-      clearTimeout(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, supported]);
 
   const applyTyped = () => {
     const extra = typed.trim();
@@ -542,4 +603,4 @@ export function VoiceBillModal({
       </div>
     </div>
   );
-}
+});

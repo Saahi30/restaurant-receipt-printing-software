@@ -14,7 +14,9 @@ export function ServiceWorkerRegister() {
       window.location.hostname === "127.0.0.1";
     if (!ok) return;
 
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
+    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
+      void reg.update();
+    }).catch((err) => {
       console.warn("Service worker registration failed:", err);
     });
   }, []);

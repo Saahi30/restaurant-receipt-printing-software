@@ -42,7 +42,7 @@ import {
 } from "@/lib/webauthn";
 import { LaptopBoard } from "@/components/LaptopBoard";
 import { printThermalSection } from "@/lib/thermal-print";
-import { VoiceBillModal, type VoiceBillApproval } from "@/components/VoiceBillModal";
+import { VoiceBillModal, type VoiceBillApproval, type VoiceBillHandle } from "@/components/VoiceBillModal";
 
 interface User {
   id: string;
@@ -145,6 +145,7 @@ export default function HomePage() {
 
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showVoiceBill, setShowVoiceBill] = useState(false);
+  const voiceBillRef = useRef<VoiceBillHandle>(null);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   
@@ -512,6 +513,13 @@ export default function HomePage() {
     setShowVoiceBill(false);
     setIsMobileCartOpen(false);
     if (ok && items.length > 0) setShowPreviewModal(true);
+  };
+
+  const openVoiceBill = () => {
+    setTab("billing");
+    setNavMenuOpen(false);
+    setShowVoiceBill(true);
+    voiceBillRef.current?.start();
   };
 
   const addMiscItem = () => {
@@ -1172,15 +1180,26 @@ export default function HomePage() {
           <h1 className="font-bold text-base sm:text-lg leading-tight truncate">{settings.restaurantName}</h1>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setNavMenuOpen((o) => !o)}
-          className="shrink-0 w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
-          aria-label={navMenuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={navMenuOpen}
-        >
-          {navMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={openVoiceBill}
+            className="h-11 px-3 sm:px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm sm:text-base flex items-center gap-2 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] active:scale-95 transition-all"
+            title={t("Voice Bill")}
+          >
+            <Mic className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.75} />
+            <span className="leading-none">{t("Voice Bill")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setNavMenuOpen((o) => !o)}
+            className="shrink-0 w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center"
+            aria-label={navMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={navMenuOpen}
+          >
+            {navMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
 
         {navMenuOpen && (
           <>
@@ -1330,6 +1349,21 @@ export default function HomePage() {
       {tab === "billing" && (
         <>
           <div className="bg-white border-b border-slate-200 px-3 py-2 print:hidden shrink-0">
+            <button
+              type="button"
+              onClick={openVoiceBill}
+              className="w-full mb-2 h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-lg flex items-center justify-center gap-2.5 shadow-md active:scale-[0.99] transition-all"
+            >
+              <span className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 flex items-center justify-center">
+                <Mic className="w-6 h-6" strokeWidth={2.75} />
+              </span>
+              <span className="flex flex-col items-start leading-tight">
+                <span>{t("Voice Bill")}</span>
+                <span className="text-[11px] font-bold text-slate-800/70 normal-case tracking-normal">
+                  {t("Tap to speak")}
+                </span>
+              </span>
+            </button>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5 flex justify-between gap-2 flex-wrap">
               <span>{t("Select Table")}</span>
               <span className="normal-case font-semibold text-slate-400">
@@ -1339,14 +1373,6 @@ export default function HomePage() {
               </span>
             </p>
             <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => setShowVoiceBill(true)}
-                className="px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all flex items-center gap-1"
-              >
-                <Mic className="w-3.5 h-3.5" />
-                {t("Voice Bill")}
-              </button>
               {(() => {
                 const parcel = getSession("PARCEL");
                 const qty = parcel.items.reduce((a, l) => a + l.quantity, 0);
@@ -1926,6 +1952,19 @@ export default function HomePage() {
             </section>
           </main>
 
+          {!isMobileCartOpen && tab === "billing" && !showVoiceBill && !showPreviewModal && (
+            <button
+              type="button"
+              onClick={openVoiceBill}
+              className={`lg:hidden fixed z-40 left-4 w-20 h-20 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-[0_10px_28px_rgba(245,158,11,0.6)] ring-4 ring-amber-200 flex items-center justify-center active:scale-95 transition-all print:hidden ${
+                selectedTable && currentBill.length > 0 ? "bottom-24" : "bottom-6"
+              }`}
+              aria-label={t("Voice Bill")}
+            >
+              <Mic className="w-10 h-10" strokeWidth={2.75} />
+            </button>
+          )}
+
           {/* Mobile Bottom Sticky Cart Summary */}
           {!isMobileCartOpen && tab === "billing" && selectedTable && currentBill.length > 0 && (
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-40 print:hidden pb-safe">
@@ -1975,19 +2014,6 @@ export default function HomePage() {
             </div>
           )}
 
-          {showVoiceBill && (
-            <VoiceBillModal
-              open={showVoiceBill}
-              onClose={() => setShowVoiceBill(false)}
-              menuItems={menuItems}
-              tables={tables}
-              selectedTable={selectedTable}
-              currency={CURRENCY}
-              lang={lang}
-              t={t}
-              onApprove={applyVoiceBill}
-            />
-          )}
         </>
       )}
 
@@ -2219,6 +2245,19 @@ export default function HomePage() {
           </div>
         </main>
       )}
+
+      <VoiceBillModal
+        ref={voiceBillRef}
+        open={showVoiceBill}
+        onClose={() => setShowVoiceBill(false)}
+        menuItems={menuItems}
+        tables={tables}
+        selectedTable={selectedTable}
+        currency={CURRENCY}
+        lang={lang}
+        t={t}
+        onApprove={applyVoiceBill}
+      />
 
       {/* Hidden print area */}
       <div id="thermal-print-section" className="hidden print:block">
