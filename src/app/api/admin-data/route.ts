@@ -14,7 +14,19 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error fetching admin data:", error);
-    return NextResponse.json({ tables: [], categories: [], menuItems: [], users: [], drawer: { "500": 0, "200": 0, "100": 0, "50": 0, "20": 0, "10": 0 }, expenses: [] }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to load admin data";
+    return NextResponse.json(
+      {
+        tables: [],
+        categories: [],
+        menuItems: [],
+        users: [],
+        drawer: { "500": 0, "200": 0, "100": 0, "50": 0, "20": 0, "10": 0 },
+        expenses: [],
+        error: message,
+      },
+      { status: 500 }
+    );
   }
 }
 

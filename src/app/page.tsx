@@ -26,6 +26,7 @@ import {
   X,
   LogOut,
   Languages,
+  Mic,
 } from "lucide-react";
 import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/webauthn";
 import { LaptopBoard } from "@/components/LaptopBoard";
 import { printThermalSection } from "@/lib/thermal-print";
+import { VoiceBillModal, type VoiceBillApproval } from "@/components/VoiceBillModal";
 
 interface User {
   id: string;
@@ -129,6 +131,7 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [dataLoadError, setDataLoadError] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [selectedUserForLogin, setSelectedUserForLogin] = useState<User | null>(null);
 
@@ -141,6 +144,7 @@ export default function HomePage() {
   const [pendingFingerprintSetup, setPendingFingerprintSetup] = useState<User | null>(null);
 
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showVoiceBill, setShowVoiceBill] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
   
@@ -176,64 +180,72 @@ export default function HomePage() {
   }, []);
 
   // ---- Load settings and data ----
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [resSettings, resData, resSessions] = await Promise.all([
-          fetch("/api/settings").catch(() => null),
-          fetch("/api/admin-data").catch(() => null),
-          fetch("/api/table-sessions").catch(() => null),
-        ]);
-        
-        if (resSettings && resSettings.ok) {
-          const json = await resSettings.json();
-          const merged: AppSettings = {
-            restaurantName: json.restaurantName ?? FALLBACK.restaurantName,
-            tagline: json.tagline ?? FALLBACK.tagline,
-            address: json.address ?? FALLBACK.address,
-            phone: json.phone ?? FALLBACK.phone,
-            currency: json.currency ?? FALLBACK.currency,
-            taxRate: json.taxRate ?? FALLBACK.taxRate,
-            aboutUs: json.aboutUs ?? FALLBACK.aboutUs,
-            footerText: json.footerText ?? FALLBACK.footerText,
-            upiId: json.upiId ?? FALLBACK.upiId,
-          };
-          setSettings(merged);
-          setForm(merged);
-        }
-        
-        if (resData && resData.ok) {
-          const json = await resData.json();
-          setTables(json.tables || []);
-          setCategories(json.categories || []);
-          setMenuItems(json.menuItems || []);
-          setAllUsers(json.users || []);
-          if (json.tables?.length > 0) setSelectedTable(json.tables[0].id);
-          if (json.categories?.length > 0) setSelectedCategory(json.categories[0].id);
-        }
-
-        if (resSessions && resSessions.ok) {
-          const json = await resSessions.json();
-          const map: Record<string, TableSession> = {};
-          for (const s of json.sessions || []) map[s.tableId] = s;
-          setSessions(map);
-        }
-
-        // Check local storage for session
-        const savedSession = localStorage.getItem("pos_session");
-        if (savedSession) {
-          try {
-            setCurrentUser(JSON.parse(savedSession));
-          } catch(e) {}
-        }
-
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const loadAppData = async () => {
+    setLoading(true);
+    setDataLoadError("");
+    try {
+      const [resSettings, resData, resSessions] = await Promise.all([
+        fetch("/api/settings").catch(() => null),
+        fetch("/api/admin-data").catch(() => null),
+        fetch("/api/table-sessions").catch(() => null),
+      ]);
+      
+      if (resSettings && resSettings.ok) {
+        const json = await resSettings.json();
+        const merged: AppSettings = {
+          restaurantName: json.restaurantName ?? FALLBACK.restaurantName,
+          tagline: json.tagline ?? FALLBACK.tagline,
+          address: json.address ?? FALLBACK.address,
+          phone: json.phone ?? FALLBACK.phone,
+          currency: json.currency ?? FALLBACK.currency,
+          taxRate: json.taxRate ?? FALLBACK.taxRate,
+          aboutUs: json.aboutUs ?? FALLBACK.aboutUs,
+          footerText: json.footerText ?? FALLBACK.footerText,
+          upiId: json.upiId ?? FALLBACK.upiId,
+        };
+        setSettings(merged);
+        setForm(merged);
       }
-    };
-    load();
+      
+      if (resData && resData.ok) {
+        const json = await resData.json();
+        setTables(json.tables || []);
+        setCategories(json.categories || []);
+        setMenuItems(json.menuItems || []);
+        setAllUsers(json.users || []);
+        if (json.tables?.length > 0) setSelectedTable(json.tables[0].id);
+        if (json.categories?.length > 0) setSelectedCategory(json.categories[0].id);
+      } else {
+        setAllUsers([]);
+        setDataLoadError(t("Could not load accounts"));
+      }
+
+      if (resSessions && resSessions.ok) {
+        const json = await resSessions.json();
+        const map: Record<string, TableSession> = {};
+        for (const s of json.sessions || []) map[s.tableId] = s;
+        setSessions(map);
+      }
+
+      // Check local storage for session
+      const savedSession = localStorage.getItem("pos_session");
+      if (savedSession) {
+        try {
+          setCurrentUser(JSON.parse(savedSession));
+        } catch(e) {}
+      }
+
+    } catch (e) {
+      console.error(e);
+      setDataLoadError(t("Could not load accounts"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAppData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reloadSessions = async () => {
@@ -254,6 +266,10 @@ export default function HomePage() {
     const id = setInterval(reloadSessions, 3000);
     return () => clearInterval(id);
   }, [currentUser]);
+
+  useEffect(() => {
+    if (tab !== "billing") setShowVoiceBill(false);
+  }, [tab]);
 
   const completePasswordLogin = (user: User) => {
     const sessionUser = {
@@ -368,10 +384,10 @@ export default function HomePage() {
     ? (customerName ? `Parcel: ${customerName}` : "Parcel (Takeaway)") 
     : (currentTableObj ? currentTableObj.name : "Unknown Table");
 
-  const persistCart = async (tableId: string, next: TableSession) => {
+  const persistCart = async (tableId: string, next: TableSession, immediate = false) => {
     setSessions((prev) => ({ ...prev, [tableId]: next }));
     if (sessionSaveTimer.current) clearTimeout(sessionSaveTimer.current);
-    sessionSaveTimer.current = setTimeout(async () => {
+    const save = async () => {
       try {
         const res = await fetch("/api/table-sessions", {
           method: "PUT",
@@ -393,12 +409,19 @@ export default function HomePage() {
         if (json.session) {
           setSessions((prev) => ({ ...prev, [json.session.tableId]: json.session }));
         }
+        return true;
       } catch (e: any) {
         console.error(e);
         setBillStatusMsg(e.message || "Failed to save — reloading");
         reloadSessions();
+        return false;
       }
+    };
+    if (immediate) return save();
+    sessionSaveTimer.current = setTimeout(() => {
+      void save();
     }, 300);
+    return true;
   };
 
   // Keep local payment/customer fields in sync when switching tables
@@ -454,6 +477,41 @@ export default function HomePage() {
       paymentMethod,
       receipt: null,
     });
+  };
+
+  const applyVoiceBill = async (bill: VoiceBillApproval) => {
+    const tableId = bill.tableId;
+    setSelectedTable(tableId);
+    setPaymentMethod(bill.paymentMethod);
+    setCustomerName(bill.customerName);
+    if (bill.paymentMethod === "Udhaar") setPaymentCollected(false);
+    else setPaymentCollected(true);
+    if (bill.paymentMethod !== "Cash") setAmountReceived("");
+
+    const prev = getSession(tableId);
+    const items: BillLine[] = bill.lines.map((line) => ({
+      id: line.id,
+      name: line.name,
+      nameHi: line.nameHi || "",
+      price: line.price,
+      quantity: line.quantity,
+    }));
+    const ok = await persistCart(
+      tableId,
+      {
+        ...prev,
+        items,
+        status: items.length ? "ongoing" : "empty",
+        customerName: bill.customerName,
+        paymentMethod: bill.paymentMethod,
+        orderType: tableId === "PARCEL" ? "Takeaway" : "Dine-In",
+        receipt: null,
+      },
+      true
+    );
+    setShowVoiceBill(false);
+    setIsMobileCartOpen(false);
+    if (ok && items.length > 0) setShowPreviewModal(true);
   };
 
   const addMiscItem = () => {
@@ -726,6 +784,7 @@ export default function HomePage() {
 
   const makeBill = async () => {
     if (currentBill.length === 0 || !selectedTable) return;
+    if (sessionSaveTimer.current) clearTimeout(sessionSaveTimer.current);
     setPrinterError("");
     setBillStatusMsg("");
     setIsPrinting(true);
@@ -911,6 +970,21 @@ export default function HomePage() {
           
           {!selectedUserForLogin ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {allUsers.length === 0 && (
+                <div className="col-span-2 md:col-span-3 bg-red-50 text-red-700 p-4 rounded-xl text-sm font-semibold flex flex-col items-center gap-3 text-center">
+                  <span className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {dataLoadError || t("Could not load accounts")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={loadAppData}
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg"
+                  >
+                    {t("Retry")}
+                  </button>
+                </div>
+              )}
               {allUsers.map((u) => (
                 <button
                   key={u.id}
@@ -1265,6 +1339,14 @@ export default function HomePage() {
               </span>
             </p>
             <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowVoiceBill(true)}
+                className="px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all flex items-center gap-1"
+              >
+                <Mic className="w-3.5 h-3.5" />
+                {t("Voice Bill")}
+              </button>
               {(() => {
                 const parcel = getSession("PARCEL");
                 const qty = parcel.items.reduce((a, l) => a + l.quantity, 0);
@@ -1891,6 +1973,20 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {showVoiceBill && (
+            <VoiceBillModal
+              open={showVoiceBill}
+              onClose={() => setShowVoiceBill(false)}
+              menuItems={menuItems}
+              tables={tables}
+              selectedTable={selectedTable}
+              currency={CURRENCY}
+              lang={lang}
+              t={t}
+              onApprove={applyVoiceBill}
+            />
           )}
         </>
       )}

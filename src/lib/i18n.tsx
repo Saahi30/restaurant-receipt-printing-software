@@ -21,6 +21,8 @@ export const translations: Record<string, Record<Language, string>> = {
 
   // Login
   "Select an account to login": { en: "Select an account to login", hi: "लॉगिन के लिए अकाउंट चुनें" },
+  "Could not load accounts": { en: "Could not load accounts. The database is unavailable.", hi: "अकाउंट लोड नहीं हो सके। डेटाबेस उपलब्ध नहीं है।" },
+  "Retry": { en: "Retry", hi: "फिर कोशिश करें" },
   "Admin Login": { en: "Admin Login", hi: "एडमिन लॉगिन" },
   "Laptop Login": { en: "Laptop Login", hi: "लैपटॉप लॉगिन" },
   "Password": { en: "Password", hi: "पासवर्ड" },
@@ -125,6 +127,60 @@ export const translations: Record<string, Record<Language, string>> = {
   "Parcel (Takeaway)": { en: "Parcel (Takeaway)", hi: "पार्सल (टेकअवे)" },
   "Unknown Table": { en: "Unknown Table", hi: "अज्ञात टेबल" },
   "Live Bill Preview": { en: "Live Bill Preview", hi: "लाइव बिल पूर्वावलोकन" },
+
+  // Voice bill
+  "Voice Bill": { en: "Voice Bill", hi: "आवाज़ से बिल" },
+  "Speak Hindi or Hinglish": {
+    en: "Speak the order in Hindi or Hinglish",
+    hi: "ऑर्डर हिंदी या हिंग्लिश में बोलें",
+  },
+  "Tap to speak": { en: "Tap to speak", hi: "बोलने के लिए टैप करें" },
+  "Stop listening": { en: "Stop listening", hi: "सुनना बंद करें" },
+  "Listening...": { en: "Listening...", hi: "सुन रहा है..." },
+  "I heard": { en: "I heard", hi: "सुना गया" },
+  "Matched items": { en: "Matched items", hi: "मिले हुए आइटम" },
+  "Could not match": { en: "Could not match", hi: "नहीं मिला" },
+  "Approve & Preview": { en: "Approve & Preview", hi: "मंज़ूर करें और देखें" },
+  "Select table to continue": {
+    en: "Select a table to continue",
+    hi: "जारी रखने के लिए टेबल चुनें",
+  },
+  "Voice needs Chrome": {
+    en: "Voice needs Google Chrome (phone or computer).",
+    hi: "आवाज़ के लिए Google Chrome चाहिए (फ़ोन या कंप्यूटर)।",
+  },
+  "Mic permission denied": {
+    en: "Microphone permission denied. Allow mic access and try again.",
+    hi: "माइक की अनुमति नहीं मिली। अनुमति दें और फिर कोशिश करें।",
+  },
+  "Voice needs internet": {
+    en: "Voice needs an internet connection.",
+    hi: "आवाज़ के लिए इंटरनेट चाहिए।",
+  },
+  "Could not start microphone": {
+    en: "Could not start the microphone.",
+    hi: "माइक्रोफ़ोन चालू नहीं हो सका।",
+  },
+  "No items recognized": {
+    en: "No menu items recognized. Speak again or type the order.",
+    hi: "कोई मेनू आइटम नहीं मिला। फिर बोलें या ऑर्डर लिखें।",
+  },
+  "Or type the order": {
+    en: "Or type: 2 butter roti, 1 dal tadka",
+    hi: "या लिखें: 2 बटर रोटी, 1 दाल तड़का",
+  },
+  "Voice bill example": {
+    en: "Example: “do butter roti aur ek dal tadka, table 2, cash”",
+    hi: "उदाहरण: “दो बटर रोटी और एक दाल तड़का, टेबल 2, कैश”",
+  },
+  "Did you mean": { en: "Did you mean", hi: "क्या यह है" },
+  "Close": { en: "Close", hi: "बंद करें" },
+  "Clear": { en: "Clear", hi: "साफ़ करें" },
+  "Add": { en: "Add", hi: "जोड़ें" },
+  "Voice bill replaces cart": {
+    en: "Approving replaces this table’s current items with the spoken order.",
+    hi: "मंज़ूरी देने पर इस टेबल का बिल बोले गए ऑर्डर से बदल जाएगा।",
+  },
 
   // Past bills
   "Past Bills": { en: "Past Bills", hi: "पुराने बिल" },
@@ -328,7 +384,6 @@ export const translations: Record<string, Record<Language, string>> = {
   "No": { en: "No", hi: "नहीं" },
   "Time": { en: "Time", hi: "समय" },
   "Cancel": { en: "Cancel", hi: "रद्द करें" },
-  "Retry": { en: "Retry", hi: "फिर से कोशिश" },
   "No print jobs yet.": { en: "No print jobs yet.", hi: "अभी कोई प्रिंट जॉब नहीं।" },
   "Online for phones": { en: "Online for phones", hi: "फ़ोन के लिए ऑनलाइन" },
   "Not ready for phones": { en: "Not ready for phones", hi: "फ़ोन के लिए तैयार नहीं" },
