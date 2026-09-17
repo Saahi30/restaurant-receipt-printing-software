@@ -32,7 +32,7 @@ import { PrintableReceipt, ReceiptProps } from "@/components/PrintableReceipt";
 import { BrandLogo } from "@/components/BrandLogo";
 import { UserAvatar } from "@/components/UserAvatar";
 import Link from "next/link";
-import { useTranslation } from "@/lib/i18n";
+import { tHindi, useTranslation } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
 import {
   canUseFingerprint,
@@ -1185,10 +1185,10 @@ export default function HomePage() {
             type="button"
             onClick={openVoiceBill}
             className="h-11 px-3 sm:px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-sm sm:text-base flex items-center gap-2 shadow-[0_0_0_3px_rgba(251,191,36,0.45)] active:scale-95 transition-all"
-            title={t("Voice Bill")}
+            title={tHindi("Voice Bill")}
           >
             <Mic className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.75} />
-            <span className="leading-none">{t("Voice Bill")}</span>
+            <span className="leading-none">{tHindi("Voice Bill")}</span>
           </button>
           <button
             type="button"
@@ -1358,9 +1358,9 @@ export default function HomePage() {
                 <Mic className="w-6 h-6" strokeWidth={2.75} />
               </span>
               <span className="flex flex-col items-start leading-tight">
-                <span>{t("Voice Bill")}</span>
+                <span>{tHindi("Voice Bill")}</span>
                 <span className="text-[11px] font-bold text-slate-800/70 normal-case tracking-normal">
-                  {t("Tap to speak")}
+                  {tHindi("Tap to speak")}
                 </span>
               </span>
             </button>
@@ -1959,7 +1959,7 @@ export default function HomePage() {
               className={`lg:hidden fixed z-40 left-4 w-20 h-20 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-[0_10px_28px_rgba(245,158,11,0.6)] ring-4 ring-amber-200 flex items-center justify-center active:scale-95 transition-all print:hidden ${
                 selectedTable && currentBill.length > 0 ? "bottom-24" : "bottom-6"
               }`}
-              aria-label={t("Voice Bill")}
+              aria-label={tHindi("Voice Bill")}
             >
               <Mic className="w-10 h-10" strokeWidth={2.75} />
             </button>
@@ -2254,8 +2254,6 @@ export default function HomePage() {
         tables={tables}
         selectedTable={selectedTable}
         currency={CURRENCY}
-        lang={lang}
-        t={t}
         onApprove={applyVoiceBill}
       />
 

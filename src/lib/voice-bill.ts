@@ -116,6 +116,8 @@ const WORD_MAP: Record<string, string> = {
   twenty: "20",
   ek: "1",
   do: "2",
+  double: "2",
+  dubble: "2",
   teen: "3",
   tin: "3",
   char: "4",
@@ -188,10 +190,12 @@ const WORD_MAP: Record<string, string> = {
   // table / parcel / payment
   "टेबल": "table",
   table: "table",
+  tablet: "table",
   "टेबलनंबर": "table",
   "पार्सल": "parcel",
   parcel: "parcel",
   parsal: "parcel",
+  personal: "parcel",
   takeaway: "parcel",
   "टेकअवे": "parcel",
   "पार्सलमें": "parcel",
@@ -199,6 +203,8 @@ const WORD_MAP: Record<string, string> = {
   "कैश": "cash",
   "नकद": "cash",
   "नगद": "cash",
+  cache: "cash",
+  kash: "cash",
   upi: "upi",
   "यूपीआई": "upi",
   gpay: "upi",
@@ -239,6 +245,8 @@ const WORD_MAP: Record<string, string> = {
   "रोटियाँ": "roti",
   rotian: "roti",
   rotis: "roti",
+  rote: "roti",
+  rotty: "roti",
   chapati: "roti",
   chappati: "roti",
   "चपाती": "roti",
@@ -246,6 +254,7 @@ const WORD_MAP: Record<string, string> = {
   "नान": "naan",
   nan: "naan",
   naan: "naan",
+  none: "naan",
   "पराठा": "paratha",
   "पराठे": "paratha",
   paratha: "paratha",
@@ -253,6 +262,8 @@ const WORD_MAP: Record<string, string> = {
   "बटर": "butter",
   makhan: "butter",
   "मक्खन": "butter",
+  better: "butter",
+  batter: "butter",
   "सादा": "plain",
   sadha: "plain",
   plain: "plain",
@@ -267,6 +278,8 @@ const WORD_MAP: Record<string, string> = {
   fry: "fry",
   "पनीर": "paneer",
   panir: "paneer",
+  panner: "paneer",
+  pioneer: "paneer",
   paneer: "paneer",
   "चावल": "rice",
   chawal: "rice",
@@ -279,6 +292,7 @@ const WORD_MAP: Record<string, string> = {
   pulav: "pulao",
   "चिकन": "chicken",
   chicken: "chicken",
+  kitchen: "chicken",
   murgh: "chicken",
   "मुर्गी": "chicken",
   "मटन": "mutton",
@@ -341,6 +355,8 @@ const WORD_MAP: Record<string, string> = {
   "कड़ी": "kadhi",
   "थाली": "thali",
   thali: "thali",
+  tally: "thali",
+  tali: "thali",
   "सूप": "soup",
   soup: "soup",
   "मंचूरियन": "manchurian",
@@ -382,16 +398,35 @@ function editDistance(a: string, b: string): number {
 
 function setHasFuzzy(set: Set<string>, token: string): boolean {
   if (set.has(token)) return true;
-  if (token.length < 4) return false;
+  if (token.length < 3) return false;
+  const maxDist = token.length >= 5 ? 2 : 1;
   for (const s of set) {
-    if (Math.abs(s.length - token.length) > 1) continue;
-    if (editDistance(s, token) <= 1) return true;
+    if (Math.abs(s.length - token.length) > maxDist) continue;
+    if (editDistance(s, token) <= maxDist) return true;
   }
   return false;
 }
 
+/** Fix common Chrome Hindi/Hinglish mishears before matching. */
+export function correctAsr(text: string): string {
+  let t = text || "";
+  const phrases: Array<[RegExp, string]> = [
+    [/\brow\s+tea\b/gi, "roti"],
+    [/\bbetter\s+roti\b/gi, "butter roti"],
+    [/\bbatter\s+roti\b/gi, "butter roti"],
+    [/\bcold\s+drinks?\b/gi, "cold drink"],
+    [/\bcall\s+drink\b/gi, "cold drink"],
+    [/\bdal\s+tarka\b/gi, "dal tadka"],
+    [/\bthe\s+tadka\b/gi, "dal tadka"],
+    [/\btable\s*t\s*(\d{1,3})\b/gi, "table $1"],
+    [/\bt\s*(\d{1,3})\b/gi, "table $1"],
+  ];
+  for (const [re, to] of phrases) t = t.replace(re, to);
+  return t;
+}
+
 export function foldSpoken(text: string): string {
-  let t = (text || "").toLowerCase().normalize("NFC");
+  let t = correctAsr(text || "").toLowerCase().normalize("NFC");
   t = t.replace(/[०-९]/g, (ch) => String(DEVANAGARI_DIGITS.indexOf(ch)));
   t = t.replace(/([a-z\u0900-\u097f]+)(\d+)/gi, "$1 $2");
   t = t.replace(/(\d+)([a-z\u0900-\u097f]+)/gi, "$1 $2");
@@ -469,14 +504,26 @@ function extractMeta(
 
   const tableMatch =
     rest.match(/\btable(?: number)? (\d{1,3})\b/) ||
-    rest.match(/\b(\d{1,3}) (?:number )?table\b/);
+    rest.match(/\b(\d{1,3}) (?:number )?table\b/) ||
+    rest.match(/\bt (\d{1,3})\b/);
   if (tableMatch) {
     const num = tableMatch[1];
     const tbl =
       tables.find((t) => foldSpoken(t.name) === `table ${num}`) ||
+      tables.find((t) => foldSpoken(t.name) === `t ${num}`) ||
+      tables.find((t) => foldSpoken(t.name).replace(/\s+/g, "") === `t${num}`) ||
       tables.find((t) => foldSpoken(t.name).split(" ").includes(num));
     if (tbl) tableHint = { kind: "table", id: tbl.id, name: tbl.name };
     rest = rest.replace(tableMatch[0], " ");
+  } else {
+    for (const tbl of tables) {
+      const n = foldSpoken(tbl.name);
+      if (n.length >= 2 && rest.includes(` ${n} `)) {
+        tableHint = { kind: "table", id: tbl.id, name: tbl.name };
+        rest = rest.replace(n, " ");
+        break;
+      }
+    }
   }
 
   if (/\budhaar\b/.test(rest)) {
@@ -563,6 +610,14 @@ export function parseVoiceOrder(
     }
 
     const phrase = tokens.slice(i, i + bestLen).filter((t) => !isQtyToken(t));
+    let consumed = bestLen;
+    if (quantity === 1 && i + bestLen < tokens.length && isQtyToken(tokens[i + bestLen])) {
+      const afterQty = i + bestLen + 1;
+      if (afterQty >= tokens.length) {
+        quantity = Number(tokens[i + bestLen]);
+        consumed += 1;
+      }
+    }
     const ranked = [...bestMatches].sort(
       (a, b) => extraRank(a.tokens, phrase, a.item.price) - extraRank(b.tokens, phrase, b.item.price)
     );
@@ -585,7 +640,7 @@ export function parseVoiceOrder(
         ambiguous: alternatives.length > 0,
       });
     }
-    i += bestLen;
+    i += consumed;
   }
 
   flushUnmatched();
@@ -598,6 +653,38 @@ export function parseVoiceOrder(
     paymentHint: meta.paymentHint,
     customerName: meta.customerName,
   };
+}
+
+function scoreParse(r: VoiceParseResult): number {
+  const qty = r.lines.reduce((a, l) => a + l.quantity, 0);
+  return (
+    r.lines.length * 20 +
+    qty * 3 -
+    r.unmatched.length * 5 +
+    (r.tableHint ? 2 : 0) +
+    (r.paymentHint ? 1 : 0)
+  );
+}
+
+/** Pick the hypothesis that matches the menu best (Chrome returns several). */
+export function parseBestVoiceOrder(
+  transcripts: string[],
+  menuItems: VoiceMenuItem[],
+  tables: VoiceTable[] = []
+): VoiceParseResult {
+  const unique = Array.from(new Set(transcripts.map((s) => s.trim()).filter(Boolean)));
+  if (unique.length === 0) return parseVoiceOrder("", menuItems, tables);
+  let best = parseVoiceOrder(unique[0], menuItems, tables);
+  let bestScore = scoreParse(best);
+  for (const text of unique.slice(1)) {
+    const next = parseVoiceOrder(text, menuItems, tables);
+    const score = scoreParse(next);
+    if (score > bestScore || (score === bestScore && next.unmatched.length < best.unmatched.length)) {
+      best = next;
+      bestScore = score;
+    }
+  }
+  return { ...best, transcript: unique[0] };
 }
 
 export function isSpeechRecognitionSupported(): boolean {

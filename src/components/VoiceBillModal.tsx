@@ -2,10 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Check, Mic, MicOff, Printer, Trash2, X } from "lucide-react";
+import { tHindi } from "@/lib/i18n";
 import { localizedName } from "@/lib/localized-name";
 import {
   isSpeechRecognitionSupported,
-  parseVoiceOrder,
+  parseBestVoiceOrder,
   type VoiceMenuItem,
   type VoiceParsedLine,
   type VoiceTable,
@@ -31,8 +32,6 @@ type Props = {
   tables: VoiceTable[];
   selectedTable: string;
   currency: string;
-  lang: string;
-  t: (key: string) => string;
   onApprove: (bill: VoiceBillApproval) => void | Promise<void>;
 };
 
@@ -48,7 +47,12 @@ type SpeechRec = {
   start: () => void;
   stop: () => void;
   abort: () => void;
-  onresult: ((ev: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onresult:
+    | ((ev: {
+        resultIndex: number;
+        results: ArrayLike<{ isFinal: boolean; length: number; [index: number]: { transcript: string } }>;
+      }) => void)
+    | null;
   onerror: ((ev: { error?: string }) => void) | null;
   onend: (() => void) | null;
 };
@@ -82,12 +86,11 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
     tables,
     selectedTable,
     currency,
-    lang,
-    t,
     onApprove,
   },
   ref
 ) {
+  const t = tHindi;
   const supported = useMemo(() => isSpeechRecognitionSupported(), []);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -99,23 +102,79 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
   const [unmatched, setUnmatched] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
   const [approving, setApproving] = useState(false);
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [level, setLevel] = useState(0);
 
   const wantListenRef = useRef(false);
   const listeningRef = useRef(false);
   const finalTextRef = useRef("");
   const recRef = useRef<SpeechRec | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const meterRafRef = useRef<number>(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const tablePickedRef = useRef(false);
   const paymentPickedRef = useRef(false);
   const namePickedRef = useRef(false);
   const fatalErrorRef = useRef(false);
   const langTryRef = useRef<"hi-IN" | "en-IN">("hi-IN");
+  const networkTriesRef = useRef(0);
   const tRef = useRef(t);
   tRef.current = t;
 
   const parsed = useMemo(
-    () => parseVoiceOrder(transcript, menuItems, tables),
-    [transcript, menuItems, tables]
+    () => parseBestVoiceOrder([transcript, ...candidates], menuItems, tables),
+    [transcript, candidates, menuItems, tables]
   );
+
+  const stopMeter = () => {
+    if (meterRafRef.current) cancelAnimationFrame(meterRafRef.current);
+    meterRafRef.current = 0;
+    try {
+      void audioCtxRef.current?.close();
+    } catch {
+      /* ignore */
+    }
+    audioCtxRef.current = null;
+    setLevel(0);
+  };
+
+  const releaseMic = () => {
+    stopMeter();
+    streamRef.current?.getTracks().forEach((tr) => tr.stop());
+    streamRef.current = null;
+  };
+
+  const startMeter = (stream: MediaStream) => {
+    stopMeter();
+    try {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        if (!wantListenRef.current) return;
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        setLevel(Math.min(1, Math.sqrt(sum / data.length) * 5));
+        meterRafRef.current = requestAnimationFrame(tick);
+      };
+      void ctx.resume();
+      tick();
+    } catch {
+      /* meter is optional */
+    }
+  };
 
   const stopListening = () => {
     wantListenRef.current = false;
@@ -126,6 +185,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
     } catch {
       /* already stopped */
     }
+    releaseMic();
   };
 
   const beginRecognition = () => {
@@ -141,26 +201,38 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
       listeningRef.current = false;
       setListening(false);
       setError(tRef.current("Voice needs Chrome"));
+      releaseMic();
       return;
     }
     recRef.current = rec;
     rec.lang = langTryRef.current;
     rec.continuous = true;
     rec.interimResults = true;
-    rec.maxAlternatives = 1;
+    rec.maxAlternatives = 5;
 
     rec.onresult = (event) => {
       fatalErrorRef.current = false;
+      networkTriesRef.current = 0;
       let interim = "";
+      const hyps: string[] = [];
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const piece = event.results[i][0]?.transcript || "";
-        if (event.results[i].isFinal) {
-          finalTextRef.current = `${finalTextRef.current} ${piece}`.trim();
+        const res = event.results[i];
+        if (res.isFinal) {
+          const prefix = finalTextRef.current;
+          const top = res[0]?.transcript || "";
+          for (let a = 0; a < res.length; a++) {
+            const piece = res[a]?.transcript || "";
+            if (piece) hyps.push(`${prefix} ${piece}`.trim());
+          }
+          finalTextRef.current = `${prefix} ${top}`.trim();
         } else {
-          interim += piece;
+          interim += res[0]?.transcript || "";
         }
       }
-      setTranscript(`${finalTextRef.current} ${interim}`.trim());
+      const heard = `${finalTextRef.current} ${interim}`.trim();
+      setTranscript(heard);
+      if (hyps.length) setCandidates(Array.from(new Set([heard, ...hyps])));
+      else setCandidates((prev) => (heard ? Array.from(new Set([heard, ...prev])) : prev));
     };
 
     rec.onerror = (event) => {
@@ -172,13 +244,13 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
         listeningRef.current = false;
         setListening(false);
         setError(tRef.current("Mic permission denied"));
+        releaseMic();
         return;
       }
       if (code === "network") {
-        // Chrome fires this if the SW intercepts Google STT, or when start()
-        // is not in a tap. Retry once with en-IN, then stop the restart loop.
-        if (langTryRef.current === "hi-IN") {
-          langTryRef.current = "en-IN";
+        if (networkTriesRef.current < 2 && wantListenRef.current) {
+          networkTriesRef.current += 1;
+          if (networkTriesRef.current === 2) langTryRef.current = "en-IN";
           return;
         }
         fatalErrorRef.current = true;
@@ -186,6 +258,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
         listeningRef.current = false;
         setListening(false);
         setError(tRef.current("Voice needs internet"));
+        releaseMic();
         return;
       }
       if (code === "audio-capture") {
@@ -194,6 +267,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
         listeningRef.current = false;
         setListening(false);
         setError(tRef.current("Could not start microphone"));
+        releaseMic();
       }
     };
 
@@ -205,7 +279,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
       }
       window.setTimeout(() => {
         if (wantListenRef.current && !fatalErrorRef.current) beginRecognition();
-      }, 250);
+      }, 180);
     };
 
     try {
@@ -217,15 +291,38 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
       listeningRef.current = false;
       setListening(false);
       setError(tRef.current("Could not start microphone"));
+      releaseMic();
     }
   };
 
   const startListening = () => {
     setError("");
     fatalErrorRef.current = false;
+    networkTriesRef.current = 0;
     langTryRef.current = "hi-IN";
     wantListenRef.current = true;
     beginRecognition();
+    const media = navigator.mediaDevices?.getUserMedia?.({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    if (!media) return;
+    media
+      .then((stream) => {
+        if (!wantListenRef.current) {
+          stream.getTracks().forEach((tr) => tr.stop());
+          return;
+        }
+        releaseMic();
+        streamRef.current = stream;
+        startMeter(stream);
+      })
+      .catch(() => {
+        if (!listeningRef.current) {
+          wantListenRef.current = false;
+          setListening(false);
+          setError(tRef.current("Mic permission denied"));
+        }
+      });
   };
 
   const startListeningRef = useRef(startListening);
@@ -251,6 +348,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
         setUnmatched([]);
         setError("");
         setListening(false);
+        setCandidates([]);
         finalTextRef.current = "";
       }
       return;
@@ -262,6 +360,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
     setDraftLines([]);
     setUnmatched([]);
     setApproving(false);
+    setCandidates([]);
     finalTextRef.current = "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -291,6 +390,13 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
       } catch {
         /* ignore */
       }
+      streamRef.current?.getTracks().forEach((tr) => tr.stop());
+      if (meterRafRef.current) cancelAnimationFrame(meterRafRef.current);
+      try {
+        void audioCtxRef.current?.close();
+      } catch {
+        /* ignore */
+      }
     };
   }, []);
 
@@ -299,6 +405,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
     if (!extra) return;
     finalTextRef.current = `${finalTextRef.current} ${extra}`.trim();
     setTranscript(finalTextRef.current);
+    setCandidates((prev) => Array.from(new Set([finalTextRef.current, extra, ...prev])));
     setTyped("");
   };
 
@@ -308,6 +415,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
     setDraftLines([]);
     setUnmatched([]);
     setTyped("");
+    setCandidates([]);
   };
 
   const subtotal = draftLines.reduce((a, l) => a + l.menuItem.price * l.quantity, 0);
@@ -377,6 +485,17 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
             >
               {listening ? <MicOff className="w-8 h-8" /> : <Mic className="w-8 h-8" />}
             </button>
+            {listening && (
+              <div className="flex items-end gap-0.5 h-6" aria-hidden>
+                {[0.35, 0.7, 1, 0.7, 0.35].map((w, i) => (
+                  <span
+                    key={i}
+                    className="w-1.5 rounded-full bg-amber-500"
+                    style={{ height: `${Math.max(6, Math.round(level * w * 24))}px` }}
+                  />
+                ))}
+              </div>
+            )}
             <div className="text-sm font-bold text-slate-700">
               {listening ? t("Listening...") : supported ? t("Tap to speak") : t("Voice needs Chrome")}
             </div>
@@ -388,7 +507,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
           {(transcript || listening) && (
             <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t("I heard")}</span>
+                <span className="text-[10px] font-bold text-slate-400">{t("I heard")}</span>
                 {transcript && (
                   <button type="button" onClick={clearHeard} className="text-[10px] font-bold text-red-500">
                     {t("Clear")}
@@ -430,7 +549,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-[10px] font-bold uppercase text-slate-400 col-span-2 sm:col-span-1">
+            <label className="text-[11px] font-bold text-slate-500 col-span-2 sm:col-span-1">
               {t("Table")}
               <select
                 value={tableId}
@@ -449,7 +568,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
                 ))}
               </select>
             </label>
-            <label className="text-[10px] font-bold uppercase text-slate-400 col-span-2 sm:col-span-1">
+            <label className="text-[11px] font-bold text-slate-500 col-span-2 sm:col-span-1">
               {t("Payment")}
               <select
                 value={paymentMethod}
@@ -465,7 +584,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
               </select>
             </label>
             {(tableId === "PARCEL" || paymentMethod === "Udhaar") && (
-              <label className="text-[10px] font-bold uppercase text-slate-400 col-span-2">
+              <label className="text-[11px] font-bold text-slate-500 col-span-2">
                 {t("Customer Name")}
                 <input
                   type="text"
@@ -486,7 +605,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
           </div>
 
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+            <div className="text-[11px] font-bold text-slate-500 mb-1.5">
               {t("Matched items")}
             </div>
             {draftLines.length === 0 ? (
@@ -498,7 +617,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-semibold text-sm text-slate-900">
-                          {localizedName(line.menuItem, lang)}
+                          {localizedName(line.menuItem, "hi")}
                         </div>
                         <div className="text-[11px] font-mono text-amber-700">
                           {currency}
@@ -554,7 +673,7 @@ export const VoiceBillModal = React.forwardRef<VoiceBillHandle, Props>(function 
                                 : "bg-amber-50 border-amber-200 text-amber-900"
                             }`}
                           >
-                            {localizedName(alt, lang)} {currency}
+                            {localizedName(alt, "hi")} {currency}
                             {alt.price.toFixed(0)}
                           </button>
                         ))}

@@ -137,13 +137,13 @@ export const translations: Record<string, Record<Language, string>> = {
   "Tap to speak": { en: "Tap to speak", hi: "बोलने के लिए टैप करें" },
   "Stop listening": { en: "Stop listening", hi: "सुनना बंद करें" },
   "Listening...": { en: "Listening...", hi: "सुन रहा है..." },
-  "I heard": { en: "I heard", hi: "सुना गया" },
+  "I heard": { en: "I heard", hi: "आपने कहा" },
   "Matched items": { en: "Matched items", hi: "मिले हुए आइटम" },
   "Could not match": { en: "Could not match", hi: "नहीं मिला" },
-  "Approve & Preview": { en: "Approve & Preview", hi: "मंज़ूर करें और देखें" },
+  "Approve & Preview": { en: "Approve & Preview", hi: "मंज़ूर करें और बिल देखें" },
   "Select table to continue": {
     en: "Select a table to continue",
-    hi: "जारी रखने के लिए टेबल चुनें",
+    hi: "आगे बढ़ने के लिए टेबल चुनें",
   },
   "Voice needs Chrome": {
     en: "Voice needs Google Chrome (phone or computer).",
@@ -500,3 +500,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
 };
 
 export const useTranslation = () => useContext(LanguageContext);
+
+export function tHindi(key: string): string {
+  return translations[key]?.hi || translations[key]?.en || key;
+}
